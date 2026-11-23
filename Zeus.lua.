@@ -1,0 +1,4885 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local Debris = game:GetService("Debris")
+local PhysicsService = game:GetService("PhysicsService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local Parts = {}
+
+local Config = {
+    Title = "TIẾT LỘ NGƯỜI SỬ DỤNG PHẦN MỀM GIAN LẬN",
+    Version = "V8.0",
+    SampleInterval = 0.1,
+    CombatInterval = 0.2,
+    UIInterval = 0.4,
+    ScanDuration = 45,
+    StaticPasses = 8,
+    StaticNeed = 5,
+    MinMoved = 50,
+    HackThreshold = 20,
+    MaxDetails = 40,
+    BgInterval = 0.12,
+    BgLife = 60,
+    BgNeedMul = 1.5,
+    BgStaticEvery = 3,
+    BgCommitEvery = 3,
+    SpawnGrace = 3,
+    SeatGrace = 2,
+    SoftStateGrace = 2.5,
+    SpeedFloor = 26,
+    SpeedMultiplier = 1.3,
+    SpeedBonus = 3,
+    SpeedWindow = 0.7,
+    SpeedStreak = 3,
+    SpeedNeed = 12,
+    BaselineRatio = 1.1,
+    BaselineCap = 90,
+    PeerRatio = 0.9,
+    PeerCount = 6,
+    JumpPeerCount = 3,
+    PeerBorderline = 1.35,
+    FlingSpeed = 250,
+    FlingNear = 20,
+    SpinFlingNear = 14,
+    TeleportLimit = 60,
+    TeleportElapsed = 0.35,
+    TeleportNeed = 3,
+    AirGap = 4,
+    FlightTime = 3,
+    FlightNeed = 16,
+    FlightFallSpeed = -12,
+    HoverVelocity = 4,
+    HoverTime = 2,
+    AirJumpRatio = 0.5,
+    AirJumpPerAir = 2,
+    AirJumpNeed = 2,
+    SuperJumpMargin = 1.8,
+    SpinAngular = 22,
+    SpinTurnSample = 1,
+    SpinWindow = 10,
+    SpinHits = 8,
+    SpinNeed = 5,
+    TiltDot = 0.5,
+    TiltNeed = 80,
+    JitterDistance = 4,
+    JitterNeed = 16,
+    UndergroundMargin = 25,
+    UndergroundNeed = 20,
+    FloorSamples = 30,
+    NoclipInside = 3,
+    NoclipNeed = 12,
+    MeshNeed = 24,
+    PathNeed = 6,
+    AttributionRadius = 60,
+    AuraRadius = 24,
+    AuraTargets = 3,
+    AuraWindow = 0.8,
+    AuraNeed = 3,
+    FarmWindow = 25,
+    FarmKills = 8,
+    KillBurstWindow = 6,
+    KillBurst = 5,
+    ReachSlack = 12,
+    ReachNeed = 5,
+    ReachHandle = 14,
+    ReachOffset = 16,
+    ClickWindow = 10,
+    ClickHits = 8,
+    ClickNeed = 5,
+    ClickDamageWindow = 1.5,
+    ClickDamageHits = 8,
+    ToolWindow = 3,
+    ToolSwitches = 10,
+    ToolNeed = 3,
+    HealMinFrac = 0.1,
+    HealMinAbs = 5,
+    HealSeries = 1.5,
+    HealWindow = 8,
+    HealRapid = 4,
+    HealBand = 0.1,
+    HealMidMin = 0.2,
+    HealMidMax = 0.8,
+    HealThreshWindow = 40,
+    HealTiming = 0.15,
+    HealToolLink = 2,
+    HealEquipGap = 0.35,
+    HealToolWindow = 10,
+    HealToolSwitches = 4,
+    HealPeerCount = 3,
+    HealWords = {
+        "heal", "health", "scroll", "potion", "medkit", "medic", "bandage", "cure", "regen",
+        "cuộn", "cuỘn", "cuon", "hồi", "hỒi", "hoi mau", "hoimau", "máu", "mÁu", "thuốc", "thuỐc"
+    },
+    BodyPartLimit = 8,
+    WalkSpeedLimit = 100,
+    JumpPowerLimit = 200,
+    HipHeightLimit = 12,
+    ScreamId = "",
+    FallbackSoundId = "rbxasset://sounds/uuhhh.mp3",
+    ScreamVolume = 10,
+    ToggleKey = Enum.KeyCode.RightShift,
+    Colors = {
+        Black = Color3.fromRGB(8, 9, 13),
+        Glass = Color3.fromRGB(24, 26, 36),
+        Glass2 = Color3.fromRGB(38, 41, 54),
+        Accent = Color3.fromRGB(110, 175, 255),
+        Violet = Color3.fromRGB(150, 105, 255),
+        Green = Color3.fromRGB(70, 220, 150),
+        Yellow = Color3.fromRGB(250, 200, 80),
+        Orange = Color3.fromRGB(255, 140, 70),
+        Red = Color3.fromRGB(255, 75, 90),
+        White = Color3.fromRGB(244, 247, 255),
+        Gray = Color3.fromRGB(150, 158, 176)
+    }
+}
+
+local State = {
+    Scanning = false,
+    Destroyed = false,
+    Generation = 0,
+    Progress = 0,
+    Spectating = nil,
+    CameraSubject = nil,
+    DamageCount = 0,
+    DamageDirty = false,
+    Tracking = false,
+    CombatMain = nil,
+    LastError = nil,
+    Shadow = nil,
+    StaticBusy = 0,
+    SpecMode = "first",
+    Hidden = {},
+    OldFov = 70,
+    Bg = true,
+    BgActive = false,
+    BgLastCommit = 0,
+    Alerts = {}
+}
+
+local Floor = {Y = nil, Samples = 0}
+local Baseline = {LocalSpeed = 0, History = {}}
+local Data = {}
+local Bg = {}
+local Rows = {}
+local Connections = {}
+local RingSize = 256
+local DamageRing = {}
+local Tracked = setmetatable({}, {__mode = "k"})
+
+local function Track(connection)
+    table.insert(Connections, connection)
+    return connection
+end
+
+local function Safe(callback, ...)
+    local ok, err = pcall(callback, ...)
+
+    if not ok and State.LastError ~= tostring(err) then
+        State.LastError = tostring(err)
+        warn("[CheatReveal] " .. State.LastError)
+    end
+
+    return ok
+end
+
+local function Create(class, properties, parent)
+    local object = Instance.new(class)
+
+    for property, value in pairs(properties or {}) do
+        object[property] = value
+    end
+
+    if object:IsA("GuiButton") then
+        object.Selectable = false
+    end
+
+    object.Parent = parent
+    return object
+end
+
+local function Corner(object, radius)
+    return Create("UICorner", {CornerRadius = UDim.new(0, radius or 8)}, object)
+end
+
+local function Stroke(object, color, transparency, thickness)
+    return Create("UIStroke", {
+        Color = color or Config.Colors.Glass2,
+        Transparency = transparency or 0,
+        Thickness = thickness or 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }, object)
+end
+
+local function FormatNumber(value)
+    return string.format("%.1f", value or 0)
+end
+
+local function GetColor(score)
+    if score >= 80 then
+        return Config.Colors.Red
+    elseif score >= 50 then
+        return Config.Colors.Orange
+    elseif score >= Config.HackThreshold then
+        return Config.Colors.Yellow
+    end
+
+    return Config.Colors.Green
+end
+
+local function Ago(seconds)
+    if seconds < 60 then
+        return "dưới 1 phút"
+    end
+
+    return math.floor(seconds / 60) .. " phút"
+end
+
+local KnownHacks = {
+    TELEPORT = "Teleport (dịch chuyển)",
+    SPEED = "Speed Hack (tăng tốc)",
+    FLING = "Fling (hất người chơi)",
+    SPIN = "Spin (xoay liên tục)",
+    FLY = "Fly Hack (bay)",
+    SUPERJUMP = "Super Jump (nhảy cao bất thường)",
+    INFJUMP = "Infinite Jump (nhảy vô hạn)",
+    UNDERGROUND = "Underground (chui xuống đất)",
+    NOCLIP = "Noclip (xuyên tường)",
+    KILLAURA = "Kill Aura (đánh diện rộng)",
+    AUTOKILL = "Auto Kill (tự động hạ người chơi)",
+    AUTOFARM = "Auto Farm (tự động cày)",
+    AUTOCLICK = "Auto Click (bấm đánh liên tục)",
+    AUTOHEAL = "Auto Heal (tự động hồi máu)",
+    TOOLSPAM = "Tool Spam (đổi vũ khí liên tục)",
+    TOOLMULTI = "Multi Tool (cầm nhiều vũ khí cùng lúc)",
+    REACH = "Reach (tầm đánh dài)",
+    HITBOX = "Hitbox Expander (nới rộng hitbox)"
+}
+
+local function NewData(isBg)
+    return {
+        IsBg = isBg == true,
+        Score = 0,
+        Peak = 0,
+        Status = "CHƯA QUÉT",
+        Scanned = false,
+        Scanning = false,
+        LastScan = 0,
+        LastStatic = 0,
+        Samples = 0,
+        Clean = 0,
+        Moved = 0,
+        Dirty = false,
+        Skip = {Ride = 0, Platform = 0, Soft = 0, Grace = 0, State = 0},
+        Evidence = {},
+        Details = {},
+        Known = {},
+        Unknown = 0,
+        Notes = {},
+        Log = {},
+        Streak = {},
+        History = {},
+        Kills = {},
+        PlayerKills = {},
+        Teleports = {},
+        HitTimes = {},
+        HealTimes = {},
+        AuraTimes = {},
+        AirJumpTimes = {},
+        SuperTimes = {},
+        ToolLast = nil,
+        ToolSwitches = {},
+        ClickHist = {},
+        ClickPrev = {},
+        SpinHist = {},
+        AirJumps = 0,
+        AirJumpLast = 0,
+        AirJumpMax = 0,
+        AirJumpFlag = false,
+        AirFlag = false,
+        GainMax = 0,
+        LastPos = nil,
+        LastTime = nil,
+        LastLook = nil,
+        LastDelta = nil,
+        LastVy = 0,
+        PrevClean = false,
+        AirStart = nil,
+        AirStartY = 0,
+        AirMaxY = 0,
+        Grace = 0,
+        SoftSince = nil,
+        Speed = 0,
+        PeakSpeed = 0,
+        Allowed = 0,
+        Gap = 0,
+        Spin = 0,
+        SpinUntil = 0,
+        AuraBursts = 0,
+        AuraStamp = 0,
+        KillStamp = 0,
+        PKillStamp = 0,
+        MoverCheck = 0,
+        MoverFound = false,
+        MoverClass = nil,
+        MoverSince = nil,
+        WaterCheck = 0,
+        InWater = false
+    }
+end
+
+local function ViewData(player)
+    if not Data[player] then
+        Data[player] = NewData(false)
+    end
+
+    return Data[player]
+end
+
+local function BgView(player)
+    if not Bg[player] then
+        Bg[player] = NewData(true)
+    end
+
+    return Bg[player]
+end
+
+local function GetData(player)
+    if State.BgActive then
+        return BgView(player)
+    end
+
+    local shadow = State.Shadow
+
+    if shadow and shadow[player] then
+        return shadow[player]
+    end
+
+    return ViewData(player)
+end
+
+local function ResetMotion(data)
+    data.LastPos = nil
+    data.LastTime = nil
+    data.LastLook = nil
+    data.LastDelta = nil
+    data.LastVy = 0
+    data.PrevClean = false
+    data.AirStart = nil
+    data.History = {}
+    data.Streak = {}
+    data.SpinHist = {}
+    data.ClickHist = {}
+    data.ClickPrev = {}
+    data.SoftSince = nil
+    data.MoverSince = nil
+end
+
+local function Trim(list, now, life)
+    while #list > 0 and now - list[1] > life do
+        table.remove(list, 1)
+    end
+end
+
+local function Recompute(data)
+    local now = os.clock()
+    local total = 0
+    local groups = 0
+    local list = {}
+    local known = {}
+    local seen = {}
+    local unknown = 0
+
+    for id, evidence in pairs(data.Evidence) do
+        if data.IsBg and now - evidence.Time > Config.BgLife then
+            data.Evidence[id] = nil
+        else
+            local confirmed = evidence.Count >= evidence.Need
+
+            table.insert(list, {
+                Id = id,
+                Name = evidence.Name,
+                Known = evidence.Known,
+                Text = evidence.Detail,
+                Count = evidence.Count,
+                Need = evidence.Need,
+                Weight = evidence.Weight,
+                Confirmed = confirmed
+            })
+
+            if confirmed then
+                total += evidence.Weight
+                groups += 1
+
+                if evidence.Known then
+                    if not seen[evidence.Name] and evidence.Weight >= 18 then
+                        seen[evidence.Name] = true
+                        table.insert(known, evidence.Name)
+                    end
+                elseif evidence.Weight >= 18 then
+                    unknown += 1
+                end
+            end
+        end
+    end
+
+    if groups > 1 then
+        total += math.min((groups - 1) * 6, 18)
+    end
+
+    data.Score = math.clamp(math.floor(total + 0.5), 0, 100)
+    data.Peak = math.max(data.Peak or 0, data.Score)
+
+    table.sort(known)
+    data.Known = known
+    data.Unknown = unknown
+
+    if data.Scanning then
+        data.Status = "ĐANG TRA..."
+    elseif not data.Scanned then
+        data.Status = "CHƯA QUÉT"
+    elseif data.Score >= Config.HackThreshold then
+        data.Status = "CÓ SỬ DỤNG HACK"
+    elseif data.Score > 0 then
+        data.Status = "DẤU HIỆU NHẸ - CHƯA KẾT LUẬN"
+    elseif (data.Moved or 0) < Config.MinMoved then
+        data.Status = "CHƯA ĐỦ DỮ LIỆU - QUÉT LẠI"
+    else
+        data.Status = "BÌNH THƯỜNG"
+    end
+
+    table.sort(list, function(a, b)
+        if a.Confirmed ~= b.Confirmed then
+            return a.Confirmed
+        end
+
+        if a.Weight ~= b.Weight then
+            return a.Weight > b.Weight
+        end
+
+        return a.Id < b.Id
+    end)
+
+    while #list > Config.MaxDetails do
+        table.remove(list)
+    end
+
+    data.Details = list
+end
+
+local function HackSummary(data)
+    local parts = {}
+
+    for _, name in ipairs(data.Known) do
+        table.insert(parts, name)
+    end
+
+    if data.Unknown > 0 then
+        table.insert(parts, "Sử dụng " .. data.Unknown .. " loại hack không xác định")
+    end
+
+    if #parts == 0 then
+        return "Hack không xác định"
+    end
+
+    return table.concat(parts, "  •  ")
+end
+
+local function LogList(data)
+    local names = {}
+    local unknown = 0
+
+    for _, entry in pairs(data.Log) do
+        if entry.Known then
+            table.insert(names, entry.Name)
+        else
+            unknown += 1
+        end
+    end
+
+    table.sort(names)
+
+    if unknown > 0 then
+        table.insert(names, "Sử dụng " .. unknown .. " loại hack không xác định")
+    end
+
+    return names
+end
+
+local function LogCount(data)
+    local count = 0
+
+    for _ in pairs(data.Log) do
+        count += 1
+    end
+
+    return count
+end
+
+local function AddEvidence(player, id, weight, need, detail, amount)
+    local data = GetData(player)
+    local add = amount or 1
+    local now = os.clock()
+    local evidence = data.Evidence[id]
+
+    if data.IsBg then
+        need = math.ceil(need * Config.BgNeedMul)
+
+        if evidence and now - evidence.Time > Config.BgLife then
+            data.Evidence[id] = nil
+            evidence = nil
+        end
+    end
+
+    if evidence then
+        evidence.Count += add
+        evidence.Detail = detail
+        evidence.Weight = weight
+        evidence.Need = need
+        evidence.Time = now
+    else
+        local name = KnownHacks[string.match(id, "^%u+")]
+
+        data.Evidence[id] = {
+            Name = name or "Hack không xác định",
+            Known = name ~= nil,
+            Weight = weight,
+            Need = need,
+            Count = add,
+            Time = now,
+            Detail = detail
+        }
+    end
+
+    data.Dirty = true
+end
+
+local function BgCommit(player)
+    local data = BgView(player)
+
+    Recompute(data)
+
+    if data.Score < Config.HackThreshold then
+        return
+    end
+
+    local now = os.time()
+
+    for _, evidence in ipairs(data.Details) do
+        if evidence.Confirmed and evidence.Weight >= 18 then
+            local key = evidence.Known and evidence.Name or evidence.Id
+            local entry = data.Log[key]
+
+            if not entry then
+                entry = {
+                    Name = evidence.Known and evidence.Name or "Hack không xác định",
+                    Key = string.match(evidence.Id, "^%u+"),
+                    Known = evidence.Known,
+                    First = now
+                }
+
+                data.Log[key] = entry
+                table.insert(State.Alerts, {Player = player, Name = entry.Name})
+            end
+
+            entry.Last = now
+            entry.Text = evidence.Text
+            entry.Count = evidence.Count
+            entry.Need = evidence.Need
+        end
+    end
+end
+
+local function Ctx(callback, ...)
+    if State.Destroyed then
+        return
+    end
+
+    if State.BgActive or State.Scanning then
+        Safe(callback, ...)
+        return
+    end
+
+    if not State.Bg then
+        return
+    end
+
+    State.BgActive = true
+    Safe(callback, ...)
+    State.BgActive = false
+end
+
+local function GetParts(player)
+    local character = player.Character
+
+    if not character or not character.Parent then
+        return nil
+    end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not root or not root:IsA("BasePart") then
+        return nil
+    end
+
+    return character, humanoid, root
+end
+
+local GroundParams = RaycastParams.new()
+GroundParams.FilterType = Enum.RaycastFilterType.Exclude
+GroundParams.IgnoreWater = true
+
+local PathParams = RaycastParams.new()
+PathParams.FilterType = Enum.RaycastFilterType.Exclude
+PathParams.IgnoreWater = true
+PathParams.RespectCanCollide = true
+
+local WallParams = OverlapParams.new()
+WallParams.FilterType = Enum.RaycastFilterType.Exclude
+WallParams.MaxParts = 40
+
+local Probe = Instance.new("Part")
+Probe.Name = "ScannerProbe"
+Probe.Size = Vector3.new(0.4, 0.4, 0.4)
+Probe.Anchored = true
+Probe.CanCollide = false
+Probe.CanQuery = false
+Probe.CanTouch = false
+Probe.Transparency = 1
+Probe.Parent = Workspace
+
+local function RefreshFilters()
+    local list = {Probe}
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            table.insert(list, player.Character)
+        end
+    end
+
+    GroundParams.FilterDescendantsInstances = list
+    PathParams.FilterDescendantsInstances = list
+    WallParams.FilterDescendantsInstances = list
+end
+
+Parts[1] = true
+assert(Parts and Parts[1], "[CheatReveal] Thiếu PHẦN 1/14, hãy dán đủ theo thứ tự từ phần 1")
+
+local Heal = {
+    Active = false,
+    Session = 0,
+    State = setmetatable({}, {__mode = "k"}),
+    Chars = setmetatable({}, {__mode = "k"}),
+    Conns = {}
+}
+
+function Heal.Pct(value)
+    return FormatNumber(value * 100) .. "%"
+end
+
+function Heal.IsTool(subject)
+    local name = type(subject) == "string" and subject or subject.Name
+    local lower = string.lower(name)
+
+    for _, word in ipairs(Config.HealWords) do
+        if string.find(lower, word, 1, true) then
+            return true
+        end
+    end
+
+    return false
+end
+
+function Heal.Reset()
+    Heal.State = setmetatable({}, {__mode = "k"})
+end
+
+function Heal.Get(player)
+    local st = Heal.State[player]
+
+    if not st then
+        st = {
+            Last = nil,
+            Max = 0,
+            SeriesStart = 0,
+            Series = 0,
+            SeriesFrom = 0,
+            Counted = false,
+            Events = {},
+            Equips = {},
+            FastTimes = {},
+            NoToolTimes = {},
+            EquipTime = nil,
+            ToolSeen = nil
+        }
+        Heal.State[player] = st
+    end
+
+    return st
+end
+
+function Heal.Add(connection)
+    table.insert(Heal.Conns, connection)
+end
+
+function Heal.Burst(player, st, amount, fromFrac, toFrac, now)
+    local data = GetData(player)
+    local seen = st.ToolSeen
+    local viaTool = seen ~= nil and now - seen.Time <= Config.HealToolLink
+    local gap = nil
+
+    if st.EquipTime and now - st.EquipTime <= Config.HealToolLink then
+        gap = now - st.EquipTime
+    end
+
+    table.insert(data.HealTimes, now)
+    Trim(data.HealTimes, now, Config.BgLife)
+
+    table.insert(st.Events, {Time = now, Amount = amount, From = fromFrac, To = toFrac})
+
+    while #st.Events > 12 do
+        table.remove(st.Events, 1)
+    end
+
+    local summary = "+" .. FormatNumber(amount) .. " máu (từ " .. Heal.Pct(fromFrac) .. " lên " .. Heal.Pct(toFrac) .. ")"
+    local recent = 0
+
+    for _, event in ipairs(st.Events) do
+        if now - event.Time <= Config.HealWindow then
+            recent += 1
+        end
+    end
+
+    if recent >= Config.HealRapid then
+        AddEvidence(
+            player,
+            "AUTOHEAL_RAPID",
+            45,
+            2,
+            "Hồi máu " .. recent .. " lần trong " .. Config.HealWindow .. "s, lần gần nhất " .. summary
+                .. "; mỗi lần hồi ít nhất " .. Heal.Pct(Config.HealMinFrac) .. " máu tối đa trong chưa tới "
+                .. FormatNumber(Config.HealSeries) .. "s (hồi máu tự nhiên chỉ khoảng 1%/giây, và game chỉ cho lấy ra 1 cuộn mỗi lần)"
+        )
+    end
+
+    local mids = {}
+
+    for index = math.max(1, #st.Events - 5), #st.Events do
+        local event = st.Events[index]
+
+        if event.From >= Config.HealMidMin and event.From <= Config.HealMidMax
+            and now - event.Time <= Config.HealThreshWindow then
+            table.insert(mids, event)
+        end
+    end
+
+    if #mids >= 3 then
+        local low = math.huge
+        local high = -math.huge
+
+        for _, event in ipairs(mids) do
+            low = math.min(low, event.From)
+            high = math.max(high, event.From)
+        end
+
+        if high - low <= Config.HealBand then
+            AddEvidence(
+                player,
+                "AUTOHEAL_THRESH",
+                45,
+                2,
+                "Hồi máu " .. #mids .. " lần liên tiếp đúng ở mức máu " .. Heal.Pct(low) .. " đến " .. Heal.Pct(high)
+                    .. " (chênh chỉ " .. Heal.Pct(high - low) .. "); người thật hồi ở các mức máu khác nhau, script auto heal thì hồi khi máu chạm một ngưỡng cố định"
+            )
+        end
+    end
+
+    if #st.Events >= 5 then
+        local low = math.huge
+        local high = -math.huge
+        local sum = 0
+
+        for index = #st.Events - 3, #st.Events do
+            local distance = st.Events[index].Time - st.Events[index - 1].Time
+
+            low = math.min(low, distance)
+            high = math.max(high, distance)
+            sum += distance
+        end
+
+        local mean = sum / 4
+
+        if high - low <= Config.HealTiming and mean <= Config.HealWindow then
+            AddEvidence(
+                player,
+                "AUTOHEAL_TIMING",
+                38,
+                2,
+                "5 lần hồi máu liên tiếp cách nhau đều đặn " .. FormatNumber(low) .. "s đến " .. FormatNumber(high)
+                    .. "s (trung bình " .. FormatNumber(mean) .. "s), lệch chưa tới " .. FormatNumber(Config.HealTiming) .. "s; người thật không bấm đều như máy"
+            )
+        end
+    end
+
+    if viaTool and gap and gap <= Config.HealEquipGap then
+        table.insert(st.FastTimes, now)
+        Trim(st.FastTimes, now, Config.BgLife)
+
+        AddEvidence(
+            player,
+            "AUTOHEAL_TOOL",
+            40,
+            4,
+            "Lấy cuộn hồi máu ra rồi hồi máu chỉ sau " .. FormatNumber(gap * 1000) .. "ms (người thật cần khoảng 0.4s trở lên để lấy cuộn rồi bấm dùng); đã lặp lại "
+                .. #st.FastTimes .. " lần, lần gần nhất " .. summary
+        )
+    end
+
+    if not viaTool then
+        table.insert(st.NoToolTimes, now)
+        Trim(st.NoToolTimes, now, Config.BgLife)
+
+        if #st.NoToolTimes >= 3 then
+            AddEvidence(
+                player,
+                "AUTOHEAL_NOTOOL",
+                10,
+                3,
+                "Hồi máu " .. #st.NoToolTimes .. " lần mà không thấy cầm vật phẩm hồi máu nào trên tay (dấu hiệu phụ, có thể do cơ chế game)"
+            )
+        end
+    end
+end
+
+function Heal.OnHealth(player, humanoid, health)
+    if State.Destroyed or not Heal.Active then
+        return
+    end
+
+    local st = Heal.Get(player)
+    local now = os.clock()
+    local previous = st.Last
+    local max = math.max(humanoid.MaxHealth, 1)
+
+    st.Last = health
+
+    if st.Max ~= max then
+        st.Max = max
+        st.Series = 0
+        return
+    end
+
+    if previous == nil or previous <= 0 or health <= 0 then
+        st.Series = 0
+        return
+    end
+
+    if health <= previous then
+        return
+    end
+
+    if now - st.SeriesStart > Config.HealSeries then
+        st.SeriesStart = now
+        st.Series = 0
+        st.SeriesFrom = previous
+        st.Counted = false
+    end
+
+    st.Series += health - previous
+
+    if not st.Counted and st.Series >= max * Config.HealMinFrac and st.Series >= Config.HealMinAbs then
+        st.Counted = true
+        Heal.Burst(player, st, st.Series, st.SeriesFrom / max, health / max, now)
+    end
+end
+
+function Heal.OnTool(player, character, tool, added)
+    if State.Destroyed or not Heal.Active or not Heal.IsTool(tool) then
+        return
+    end
+
+    local st = Heal.Get(player)
+    local now = os.clock()
+
+    st.ToolSeen = {Time = now, Name = tool.Name}
+
+    if not added then
+        return
+    end
+
+    st.EquipTime = now
+    table.insert(st.Equips, now)
+    Trim(st.Equips, now, Config.HealToolWindow)
+
+    local held = 0
+
+    for _, child in ipairs(character:GetChildren()) do
+        if child:IsA("Tool") and Heal.IsTool(child) then
+            held += 1
+        end
+    end
+
+    if held >= 2 then
+        AddEvidence(
+            player,
+            "AUTOHEAL_MULTI",
+            40,
+            2,
+            "Đang cầm cùng lúc " .. held .. " cuộn/vật phẩm hồi máu, trong khi game chỉ cho lấy ra 1 cuộn mỗi lần"
+        )
+    end
+
+    if #st.Equips >= Config.HealToolSwitches then
+        AddEvidence(
+            player,
+            "AUTOHEAL_CYCLE",
+            45,
+            2,
+            "Lấy vật phẩm hồi máu ra khỏi balo " .. #st.Equips .. " lần trong " .. Config.HealToolWindow
+                .. "s (liên tục lấy cuộn khác ra để hồi, người thật chỉ lấy 1 cuộn rồi chờ)"
+        )
+    end
+end
+
+function Heal.Hook(player, character)
+    local session = Heal.Session
+
+    task.spawn(function()
+        local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
+
+        if not humanoid or State.Destroyed or not Heal.Active or session ~= Heal.Session then
+            return
+        end
+
+        local old = Heal.Chars[player]
+
+        if old then
+            for _, connection in ipairs(old) do
+                connection:Disconnect()
+            end
+        end
+
+        local st = Heal.Get(player)
+
+        st.Last = humanoid.Health
+        st.Max = math.max(humanoid.MaxHealth, 1)
+        st.Series = 0
+
+        Heal.Chars[player] = {
+            humanoid.HealthChanged:Connect(function(health)
+                Ctx(Heal.OnHealth, player, humanoid, health)
+            end),
+            character.ChildAdded:Connect(function(child)
+                if child:IsA("Tool") then
+                    Ctx(Heal.OnTool, player, character, child, true)
+                end
+            end),
+            character.ChildRemoved:Connect(function(child)
+                if child:IsA("Tool") then
+                    Ctx(Heal.OnTool, player, character, child, false)
+                end
+            end)
+        }
+    end)
+end
+
+function Heal.Attach(player)
+    if player == LocalPlayer then
+        return
+    end
+
+    Heal.Add(player.CharacterAdded:Connect(function(character)
+        Heal.Hook(player, character)
+    end))
+
+    if player.Character then
+        Heal.Hook(player, player.Character)
+    end
+end
+
+function Heal.Stop()
+    Heal.Active = false
+
+    for _, connection in ipairs(Heal.Conns) do
+        connection:Disconnect()
+    end
+
+    table.clear(Heal.Conns)
+
+    for player, list in pairs(Heal.Chars) do
+        for _, connection in ipairs(list) do
+            connection:Disconnect()
+        end
+
+        Heal.Chars[player] = nil
+    end
+end
+
+function Heal.Start()
+    if Heal.Active then
+        return
+    end
+
+    Heal.Session += 1
+    Heal.Active = true
+    Heal.Reset()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        Heal.Attach(player)
+    end
+
+    Heal.Add(Players.PlayerAdded:Connect(function(player)
+        Heal.Attach(player)
+    end))
+end
+
+local function RootOf(humanoid)
+    local model = humanoid.Parent
+
+    if not model then
+        return nil
+    end
+
+    local part = model:FindFirstChild("HumanoidRootPart")
+
+    if part and part:IsA("BasePart") then
+        return part
+    end
+
+    if model:IsA("Model") and model.PrimaryPart then
+        return model.PrimaryPart
+    end
+
+    return model:FindFirstChildWhichIsA("BasePart")
+end
+
+local function ResetRing()
+    for index = 1, RingSize do
+        DamageRing[index] = nil
+    end
+
+    State.DamageCount = 0
+    State.DamageDirty = false
+end
+
+local function TrackHumanoid(humanoid)
+    if not State.Tracking or Tracked[humanoid] ~= nil or not humanoid.Parent then
+        return
+    end
+
+    local record = {Health = humanoid.Health, Conns = {}}
+    Tracked[humanoid] = record
+
+    record.Conns[1] = humanoid.HealthChanged:Connect(function(health)
+        if State.Destroyed or not State.Tracking then
+            return
+        end
+
+        local previous = record.Health
+        record.Health = health
+
+        if previous and health < previous then
+            local part = RootOf(humanoid)
+
+            if part then
+                State.DamageCount += 1
+                DamageRing[State.DamageCount % RingSize + 1] = {
+                    Time = os.clock(),
+                    Humanoid = humanoid,
+                    Position = part.Position,
+                    Delta = previous - health,
+                    Dead = health <= 0,
+                    Nearest = nil,
+                    Distance = 0,
+                    Clear = false,
+                    IsPlayer = false,
+                    Counted = false,
+                    Checked = false
+                }
+                State.DamageDirty = true
+            end
+        end
+    end)
+
+    record.Conns[2] = humanoid.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            for _, connection in ipairs(record.Conns) do
+                connection:Disconnect()
+            end
+
+            if Tracked[humanoid] == record then
+                Tracked[humanoid] = nil
+            end
+        end
+    end)
+end
+
+local function StartCombat()
+    ResetRing()
+
+    if State.Tracking then
+        return
+    end
+
+    State.Tracking = true
+
+    task.spawn(function()
+        local count = 0
+
+        for _, instance in ipairs(Workspace:GetDescendants()) do
+            if State.Destroyed or not State.Tracking then
+                return
+            end
+
+            count += 1
+
+            if count % 500 == 0 then
+                task.wait()
+            end
+
+            if instance:IsA("Humanoid") then
+                TrackHumanoid(instance)
+            end
+        end
+    end)
+
+    State.CombatMain = Workspace.DescendantAdded:Connect(function(instance)
+        if instance:IsA("Humanoid") then
+            task.defer(TrackHumanoid, instance)
+        end
+    end)
+
+    Safe(Heal.Start)
+end
+
+local function StopCombat()
+    State.Tracking = false
+
+    if State.CombatMain then
+        State.CombatMain:Disconnect()
+        State.CombatMain = nil
+    end
+
+    for humanoid, record in pairs(Tracked) do
+        for _, connection in ipairs(record.Conns) do
+            connection:Disconnect()
+        end
+
+        Tracked[humanoid] = nil
+    end
+
+    Safe(Heal.Stop)
+end
+
+Parts[2] = true
+assert(Parts and Parts[2], "[CheatReveal] Thiếu PHẦN 2/14, hãy dán đủ theo thứ tự")
+
+local MeleeWords = {
+    "sword", "knife", "katana", "blade", "axe", "hammer", "bat",
+    "dagger", "spear", "saber", "sabre", "scythe", "mace", "club"
+}
+
+local function IsMelee(tool)
+    local lower = string.lower(tool.Name)
+
+    for _, word in ipairs(MeleeWords) do
+        if string.find(lower, "%f[%a]" .. word .. "s?%f[%A]") then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function AnalyzeCombat()
+    if not State.DamageDirty then
+        return
+    end
+
+    State.DamageDirty = false
+
+    local now = os.clock()
+    local actors = {}
+    local byPlayer = {}
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        local character, humanoid, root = GetParts(player)
+
+        if character and humanoid.Health > 0 then
+            local actor = {
+                Player = player,
+                Humanoid = humanoid,
+                Root = root,
+                Tool = character:FindFirstChildOfClass("Tool")
+            }
+            table.insert(actors, actor)
+            byPlayer[player] = actor
+        end
+    end
+
+    if #actors == 0 then
+        return
+    end
+
+    local groups = {}
+    local touched = {}
+
+    for index = 1, RingSize do
+        local event = DamageRing[index]
+
+        if event and now - event.Time <= Config.FarmWindow then
+            if event.Nearest == nil then
+                local best = nil
+                local bestDistance = Config.AttributionRadius + 1
+                local second = math.huge
+
+                for _, actor in ipairs(actors) do
+                    if actor.Humanoid ~= event.Humanoid then
+                        local distance = (actor.Root.Position - event.Position).Magnitude
+
+                        if distance < bestDistance then
+                            if best then
+                                second = bestDistance
+                            end
+
+                            best = actor
+                            bestDistance = distance
+                        elseif distance < second then
+                            second = distance
+                        end
+                    end
+                end
+
+                if best and bestDistance <= Config.AttributionRadius then
+                    event.Nearest = best.Player
+                    event.Distance = bestDistance
+                    event.Clear = second > bestDistance * 1.4 + 6
+                else
+                    event.Nearest = false
+                end
+
+                local model = event.Humanoid.Parent
+                event.IsPlayer = model ~= nil and Players:GetPlayerFromCharacter(model) ~= nil
+            end
+
+            local attacker = event.Nearest
+            local actor = attacker and byPlayer[attacker]
+
+            if actor and attacker ~= LocalPlayer then
+                local data = GetData(attacker)
+
+                if now - event.Time <= Config.AuraWindow and event.Distance <= Config.AuraRadius then
+                    local group = groups[attacker]
+
+                    if not group then
+                        group = {Targets = {}, Newest = 0}
+                        groups[attacker] = group
+                    end
+
+                    group.Targets[event.Humanoid] = event
+                    group.Newest = math.max(group.Newest, event.Time)
+                end
+
+                if event.Dead and not event.Counted then
+                    event.Counted = true
+                    table.insert(data.Kills, event.Time)
+
+                    if event.IsPlayer and event.Clear then
+                        table.insert(data.PlayerKills, event.Time)
+                    end
+                end
+
+                if not event.Checked then
+                    event.Checked = true
+
+                    local tool = actor.Tool
+
+                    if event.Clear and tool and IsMelee(tool) then
+                        table.insert(data.HitTimes, event.Time)
+                        touched[attacker] = true
+
+                        local handle = tool:FindFirstChild("Handle")
+
+                        if handle and handle:IsA("BasePart") then
+                            local handleSize = math.max(handle.Size.X, handle.Size.Y, handle.Size.Z)
+                            local limit = handleSize + Config.ReachSlack
+                            local distance = (event.Position - actor.Root.Position).Magnitude
+
+                            if distance > limit then
+                                AddEvidence(
+                                    attacker,
+                                    "REACH_DAMAGE",
+                                    45,
+                                    Config.ReachNeed,
+                                    "Gây sát thương ở cách " .. FormatNumber(distance) .. " studs với vũ khí cận chiến '" .. tool.Name .. "' (tầm hợp lệ khoảng " .. FormatNumber(limit) .. "); người này là người gần nạn nhân nhất và vượt trội so với người thứ hai nên không nhầm sang người khác"
+                                )
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for player in pairs(touched) do
+        local data = GetData(player)
+        Trim(data.HitTimes, now, Config.ClickDamageWindow)
+
+        if #data.HitTimes >= Config.ClickDamageHits then
+            AddEvidence(
+                player,
+                "AUTOCLICK",
+                45,
+                Config.ClickNeed,
+                #data.HitTimes .. " lần gây sát thương cận chiến trong " .. FormatNumber(Config.ClickDamageWindow) .. "s, nhanh hơn tốc độ bấm của người thật"
+            )
+            data.HitTimes = {}
+        end
+    end
+
+    for player, group in pairs(groups) do
+        local actor = byPlayer[player]
+        local data = GetData(player)
+
+        if actor and group.Newest > data.AuraStamp then
+            data.AuraStamp = group.Newest
+
+            local count = 0
+            local behind = 0
+            local look = actor.Root.CFrame.LookVector
+
+            for _, event in pairs(group.Targets) do
+                count += 1
+
+                local offset = event.Position - actor.Root.Position
+                local flat = Vector3.new(offset.X, 0, offset.Z)
+
+                if flat.Magnitude > 1 and look:Dot(flat.Unit) < -0.2 then
+                    behind += 1
+                end
+            end
+
+            local unarmed = actor.Tool == nil
+
+            if count >= Config.AuraTargets and (behind >= 2 or (unarmed and count >= 4) or count >= 5) then
+                data.AuraBursts += 1
+                table.insert(data.AuraTimes, now)
+                Trim(data.AuraTimes, now, Config.BgLife)
+
+                AddEvidence(
+                    player,
+                    "KILLAURA",
+                    45,
+                    Config.AuraNeed,
+                    count .. " mục tiêu cùng nhận sát thương trong " .. FormatNumber(Config.AuraWindow) .. "s quanh người này, " .. behind .. " mục tiêu ở sau lưng" .. (unarmed and ", không cầm vũ khí" or "") .. " (lần thứ " .. data.AuraBursts .. ")"
+                )
+            end
+        end
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local data = GetData(player)
+
+            Trim(data.Kills, now, Config.FarmWindow)
+            Trim(data.PlayerKills, now, Config.KillBurstWindow)
+            Trim(data.Teleports, now, 40)
+
+            local newest = data.Kills[#data.Kills]
+
+            if newest and newest > data.KillStamp then
+                data.KillStamp = newest
+
+                if #data.Kills >= Config.FarmKills and #data.Teleports >= 2 then
+                    AddEvidence(
+                        player,
+                        "AUTOFARM",
+                        55,
+                        1,
+                        "Hạ " .. #data.Kills .. " mục tiêu trong " .. Config.FarmWindow .. "s, kèm " .. #data.Teleports .. " lần dịch chuyển tức thời giữa các mục tiêu"
+                    )
+                end
+            end
+
+            local playerNewest = data.PlayerKills[#data.PlayerKills]
+
+            if playerNewest and playerNewest > data.PKillStamp then
+                data.PKillStamp = playerNewest
+
+                if #data.PlayerKills >= Config.KillBurst then
+                    AddEvidence(
+                        player,
+                        "AUTOKILL",
+                        45,
+                        2,
+                        "Hạ " .. #data.PlayerKills .. " người chơi trong " .. Config.KillBurstWindow .. "s, mỗi lần đều xác định rõ người này là người gần nạn nhân nhất"
+                    )
+                end
+            end
+        end
+    end
+end
+
+local function WatchPlayer(player)
+    if player == LocalPlayer then
+        return
+    end
+
+    local function OnCharacter()
+        for _, data in ipairs({ViewData(player), BgView(player)}) do
+            ResetMotion(data)
+            data.ToolLast = nil
+            data.ToolSwitches = {}
+            data.Grace = os.clock() + Config.SpawnGrace
+        end
+    end
+
+    if player.Character then
+        OnCharacter()
+    end
+
+    Track(player.CharacterAdded:Connect(OnCharacter))
+end
+
+Parts[3] = true
+assert(Parts and Parts[3], "[CheatReveal] Thiếu PHẦN 3/14, hãy dán đủ theo thứ tự")
+
+local HardStates = {
+    [Enum.HumanoidStateType.Climbing] = true,
+    [Enum.HumanoidStateType.Swimming] = true,
+    [Enum.HumanoidStateType.Seated] = true,
+    [Enum.HumanoidStateType.Dead] = true
+}
+
+local SoftStates = {
+    [Enum.HumanoidStateType.Ragdoll] = true,
+    [Enum.HumanoidStateType.FallingDown] = true,
+    [Enum.HumanoidStateType.PlatformStanding] = true,
+    [Enum.HumanoidStateType.Physics] = true,
+    [Enum.HumanoidStateType.GettingUp] = true
+}
+
+local MoverClasses = {
+    BodyVelocity = true,
+    BodyGyro = true,
+    BodyPosition = true,
+    BodyThrust = true,
+    BodyForce = true,
+    BodyAngularVelocity = true,
+    RocketPropulsion = true,
+    LinearVelocity = true,
+    AngularVelocity = true,
+    VectorForce = true,
+    AlignPosition = true,
+    AlignOrientation = true,
+    LineForce = true,
+    Torque = true
+}
+
+local AirToolWords = {
+    "glide", "glider", "parachute", "wing", "jetpack", "hover", "broom",
+    "carpet", "heli", "rocket", "cloud", "balloon", "umbrella"
+}
+
+local ActionPriority = {
+    [Enum.AnimationPriority.Action] = true,
+    [Enum.AnimationPriority.Action2] = true,
+    [Enum.AnimationPriority.Action3] = true,
+    [Enum.AnimationPriority.Action4] = true
+}
+
+local function JumpVelocity(humanoid)
+    if humanoid.UseJumpPower then
+        return humanoid.JumpPower
+    end
+
+    return math.sqrt(2 * Workspace.Gravity * humanoid.JumpHeight)
+end
+
+local function MaxJump(humanoid)
+    local velocity = JumpVelocity(humanoid)
+    return (velocity * velocity) / (2 * Workspace.Gravity)
+end
+
+local function AllowedSpeed(humanoid)
+    return math.max(
+        Config.SpeedFloor,
+        humanoid.WalkSpeed * Config.SpeedMultiplier + Config.SpeedBonus,
+        Baseline.LocalSpeed * Config.BaselineRatio
+    )
+end
+
+local function Streak(data, key, condition)
+    if condition then
+        data.Streak[key] = (data.Streak[key] or 0) + 1
+    else
+        data.Streak[key] = 0
+    end
+
+    return data.Streak[key]
+end
+
+local function StandOffset(humanoid, root)
+    if humanoid.RigType == Enum.HumanoidRigType.R6 then
+        return 3
+    end
+
+    return humanoid.HipHeight + root.Size.Y / 2
+end
+
+local function GroundGap(humanoid, root, maxDistance)
+    local result = Workspace:Raycast(root.Position, Vector3.new(0, -maxDistance, 0), GroundParams)
+
+    if not result then
+        return nil, nil
+    end
+
+    return result.Distance - StandOffset(humanoid, root), result
+end
+
+local function Collides(root, part)
+    local ok, result = pcall(function()
+        return PhysicsService:CollisionGroupsAreCollidable(root.CollisionGroup, part.CollisionGroup)
+    end)
+
+    if ok then
+        return result
+    end
+
+    return true
+end
+
+local function SolidKind(part, root)
+    if not part:IsA("BasePart") or part:IsA("TrussPart") then
+        return nil
+    end
+
+    if not part.CanCollide or not part.Anchored then
+        return nil
+    end
+
+    if part:GetAttribute("ACAllowed") then
+        return nil
+    end
+
+    if part:IsA("Terrain") then
+        if Collides(root, part) then
+            return "terrain"
+        end
+
+        return nil
+    end
+
+    if part.Size.Magnitude < 1.2 then
+        return nil
+    end
+
+    if not Collides(root, part) then
+        return nil
+    end
+
+    if part:IsA("MeshPart") or part:IsA("UnionOperation") then
+        local fidelity = part.CollisionFidelity
+
+        if fidelity == Enum.CollisionFidelity.Box or fidelity == Enum.CollisionFidelity.PreciseConvexDecomposition then
+            return "part"
+        end
+
+        return "mesh"
+    end
+
+    return "part"
+end
+
+local function NearestOther(player, position, radius)
+    local best = nil
+    local bestDistance = radius
+
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= player then
+            local _, _, otherRoot = GetParts(other)
+
+            if otherRoot then
+                local distance = (otherRoot.Position - position).Magnitude
+
+                if distance <= bestDistance then
+                    best = other
+                    bestDistance = distance
+                end
+            end
+        end
+    end
+
+    return best, bestDistance
+end
+
+local function HasMover(data, character, now)
+    if now - data.MoverCheck < 1.5 then
+        return data.MoverFound, data.MoverClass
+    end
+
+    data.MoverCheck = now
+
+    local found = false
+    local class = nil
+
+    for _, descendant in ipairs(character:GetDescendants()) do
+        if MoverClasses[descendant.ClassName] then
+            found = true
+            class = descendant.ClassName
+            break
+        end
+    end
+
+    data.MoverFound = found
+    data.MoverClass = class
+
+    return found, class
+end
+
+local function HasAirTool(character)
+    local tool = character:FindFirstChildOfClass("Tool")
+
+    if not tool then
+        return false
+    end
+
+    local lower = string.lower(tool.Name)
+
+    for _, word in ipairs(AirToolWords) do
+        if string.find(lower, word, 1, true) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function InWater(data, position, now)
+    if now - data.WaterCheck < 1 then
+        return data.InWater
+    end
+
+    data.WaterCheck = now
+    data.InWater = false
+
+    pcall(function()
+        local region = Region3.new(position - Vector3.new(3, 4, 3), position + Vector3.new(3, 2, 3)):ExpandToGrid(4)
+        local materials = Workspace.Terrain:ReadVoxels(region, 4)
+
+        for x = 1, #materials do
+            for y = 1, #materials[x] do
+                for z = 1, #materials[x][y] do
+                    if materials[x][y][z] == Enum.Material.Water then
+                        data.InWater = true
+                        return
+                    end
+                end
+            end
+        end
+    end)
+
+    return data.InWater
+end
+
+local function LearnFloor(gap, hit, trusted)
+    if not gap or gap > Config.AirGap or not hit or not hit.Instance.Anchored then
+        return
+    end
+
+    local y = hit.Position.Y
+
+    if not Floor.Y then
+        Floor.Y = y
+        Floor.Samples = 1
+        return
+    end
+
+    Floor.Samples += 1
+
+    if y < Floor.Y and (trusted or y >= Floor.Y - Config.UndergroundMargin) then
+        Floor.Y = y
+    end
+end
+
+local function SampleLocal()
+    local character, humanoid, root = GetParts(LocalPlayer)
+
+    if not character or humanoid.Health <= 0 then
+        Baseline.History = {}
+        return
+    end
+
+    local now = os.clock()
+    local state = humanoid:GetState()
+    local seated = humanoid.SeatPart ~= nil or humanoid.Sit
+    local attached = false
+    local assemblyRoot = root.AssemblyRootPart
+
+    if assemblyRoot and assemblyRoot ~= root and not assemblyRoot:IsDescendantOf(character) then
+        attached = true
+    end
+
+    local gap, hit = GroundGap(humanoid, root, 8)
+
+    LearnFloor(gap, hit, true)
+
+    local grounded = gap ~= nil and gap <= Config.AirGap and hit ~= nil and hit.Instance.Anchored
+
+    if seated or attached or HardStates[state] or SoftStates[state] or not grounded then
+        Baseline.History = {}
+        return
+    end
+
+    table.insert(Baseline.History, {Time = now, Position = root.Position})
+
+    while #Baseline.History > 1 and now - Baseline.History[1].Time > Config.SpeedWindow + 0.15 do
+        table.remove(Baseline.History, 1)
+    end
+
+    local first = Baseline.History[1]
+    local span = now - first.Time
+
+    if span >= Config.SpeedWindow * 0.8 then
+        local dx = root.Position.X - first.Position.X
+        local dz = root.Position.Z - first.Position.Z
+        local speed = math.sqrt(dx * dx + dz * dz) / span
+
+        if speed > Baseline.LocalSpeed then
+            Baseline.LocalSpeed = math.min(speed, Config.BaselineCap)
+        else
+            Baseline.LocalSpeed = math.max(speed, Baseline.LocalSpeed * 0.9995)
+        end
+    end
+end
+
+local function MonitorTool(player, data, character, humanoid, now)
+    local tool = character:FindFirstChildOfClass("Tool")
+
+    if tool ~= data.ToolLast then
+        if data.ToolLast ~= nil or tool ~= nil then
+            table.insert(data.ToolSwitches, now)
+        end
+
+        data.ToolLast = tool
+    end
+
+    Trim(data.ToolSwitches, now, Config.ToolWindow)
+
+    if #data.ToolSwitches >= Config.ToolSwitches then
+        AddEvidence(
+            player,
+            "TOOLSPAM",
+            42,
+            Config.ToolNeed,
+            "Cầm và cất vũ khí " .. #data.ToolSwitches .. " lần trong " .. Config.ToolWindow .. "s (người bình thường hiếm khi đổi nhanh như vậy)"
+        )
+        data.ToolSwitches = {}
+    end
+
+    local hit = false
+
+    if tool then
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+
+        if animator then
+            local ok, tracks = pcall(animator.GetPlayingAnimationTracks, animator)
+
+            if ok then
+                local seen = {}
+
+                for _, track in ipairs(tracks) do
+                    if ActionPriority[track.Priority] and not track.Looped then
+                        seen[track] = true
+
+                        local previous = data.ClickPrev[track]
+                        local position = track.TimePosition
+
+                        if previous == nil or position < previous - 0.005 then
+                            hit = true
+                        end
+
+                        data.ClickPrev[track] = position
+                    end
+                end
+
+                for track in pairs(data.ClickPrev) do
+                    if not seen[track] then
+                        data.ClickPrev[track] = nil
+                    end
+                end
+            end
+        end
+    else
+        data.ClickPrev = {}
+    end
+
+    table.insert(data.ClickHist, hit and 1 or 0)
+
+    while #data.ClickHist > Config.ClickWindow do
+        table.remove(data.ClickHist, 1)
+    end
+
+    if #data.ClickHist >= Config.ClickWindow then
+        local total = 0
+
+        for _, value in ipairs(data.ClickHist) do
+            total += value
+        end
+
+        if total >= Config.ClickHits and tool then
+            AddEvidence(
+                player,
+                "AUTOCLICK",
+                45,
+                Config.ClickNeed,
+                "Phát lại hoạt ảnh đánh " .. total .. "/" .. Config.ClickWindow .. " lần đo liên tiếp (khoảng " .. FormatNumber(Config.ClickWindow * Config.SampleInterval) .. "s) khi đang cầm '" .. tool.Name .. "', nhanh hơn người thật"
+            )
+            data.ClickHist = {}
+        end
+    end
+end
+
+Parts[4] = true
+assert(Parts and Parts[4], "[CheatReveal] Thiếu PHẦN 4/14, hãy dán đủ theo thứ tự")
+
+local function ScanMotion(player)
+    local data = GetData(player)
+    local character, humanoid, root = GetParts(player)
+
+    if not character or humanoid.Health <= 0 then
+        ResetMotion(data)
+        return
+    end
+
+    local now = os.clock()
+    local position = root.Position
+    local last = data.LastPos
+    local elapsed = data.LastTime and (now - data.LastTime) or 0
+
+    if elapsed > 1 then
+        ResetMotion(data)
+        last = nil
+        elapsed = 0
+    end
+
+    local prevClean = data.PrevClean
+    local lastLook = data.LastLook
+    local lastDelta = data.LastDelta
+    local look = root.CFrame.LookVector
+
+    data.LastPos = position
+    data.LastTime = now
+    data.LastLook = look
+    data.Samples += 1
+
+    Safe(MonitorTool, player, data, character, humanoid, now)
+
+    local state = humanoid:GetState()
+    local seated = humanoid.SeatPart ~= nil or humanoid.Sit
+    local attached = false
+    local assemblyRoot = root.AssemblyRootPart
+
+    if assemblyRoot and assemblyRoot ~= root and not assemblyRoot:IsDescendantOf(character) then
+        attached = true
+    end
+
+    local hard = seated or attached or HardStates[state] == true
+    local soft = SoftStates[state] == true or humanoid.PlatformStand
+
+    if soft then
+        data.SoftSince = data.SoftSince or now
+    else
+        data.SoftSince = nil
+    end
+
+    local softExempt = soft and (now - data.SoftSince) < Config.SoftStateGrace
+
+    if seated or attached then
+        data.Grace = math.max(data.Grace, now + Config.SeatGrace)
+        data.Skip.Ride += 1
+    elseif hard then
+        data.Skip.State += 1
+    elseif softExempt then
+        data.Skip.Soft += 1
+    end
+
+    if last and elapsed > 0 and elapsed <= 0.3 and not seated and not attached then
+        local instant = (position - last).Magnitude / elapsed
+
+        if instant > Config.FlingSpeed then
+            local spinner = nil
+            local spinnerDistance = Config.FlingNear
+
+            for _, other in ipairs(Players:GetPlayers()) do
+                if other ~= player and other ~= LocalPlayer then
+                    local otherData = GetData(other)
+
+                    if otherData.SpinUntil > now then
+                        local _, _, otherRoot = GetParts(other)
+
+                        if otherRoot then
+                            local distance = (otherRoot.Position - position).Magnitude
+
+                            if distance <= spinnerDistance then
+                                spinner = other
+                                spinnerDistance = distance
+                            end
+                        end
+                    end
+                end
+            end
+
+            if spinner then
+                AddEvidence(
+                    spinner,
+                    "FLING",
+                    55,
+                    4,
+                    "Người chơi " .. player.Name .. " bị hất đi " .. FormatNumber(instant) .. " studs/s khi đang xoay sát người này (" .. FormatNumber(spinnerDistance) .. " studs)",
+                    2
+                )
+            end
+        end
+    end
+
+    local grace = now < data.Grace
+    local clean = not grace and not hard and not softExempt
+    local gap = nil
+    local hit = nil
+
+    if not hard then
+        gap, hit = GroundGap(humanoid, root, 400)
+        data.Gap = gap or -1
+    end
+
+    if not clean then
+        if grace and not hard and not softExempt then
+            data.Skip.Grace += 1
+        end
+
+        data.History = {}
+        data.Streak = {}
+        data.AirStart = nil
+        data.PrevClean = false
+        data.LastDelta = nil
+        data.LastVy = 0
+        return
+    end
+
+    local platform = false
+
+    if hit and gap and gap <= Config.AirGap then
+        local part = hit.Instance
+
+        if not part.Anchored or part.AssemblyLinearVelocity.Magnitude > 1.5 then
+            platform = true
+            data.Skip.Platform += 1
+        end
+    end
+
+    data.Clean += 1
+    LearnFloor(gap, hit, false)
+
+    local jumpLimit = math.max(MaxJump(humanoid), 7)
+    local currentVy = 0
+
+    if last and prevClean and elapsed > 0 then
+        currentVy = (position.Y - last.Y) / elapsed
+    end
+
+    if not platform and last and prevClean and elapsed > 0 and elapsed <= Config.TeleportElapsed then
+        local distance = (position - last).Magnitude
+        local expected = data.Speed * elapsed
+
+        if distance > Config.TeleportLimit and distance > expected * 3 + 25 then
+            table.insert(data.Teleports, now)
+
+            AddEvidence(
+                player,
+                "TELEPORT",
+                50,
+                Config.TeleportNeed,
+                "Tọa độ nhảy " .. FormatNumber(distance) .. " studs trong " .. FormatNumber(elapsed * 1000) .. "ms mà không đi qua khoảng giữa; không ngồi xe, không vừa hồi sinh; đã xảy ra " .. #data.Teleports .. " lần"
+            )
+
+            data.History = {{Time = now, Position = position}}
+            data.Streak = {}
+            data.AirStart = nil
+            data.LastDelta = nil
+            data.LastVy = 0
+            data.PrevClean = true
+            return
+        end
+    end
+
+    table.insert(data.History, {Time = now, Position = position})
+
+    while #data.History > 1 and now - data.History[1].Time > Config.SpeedWindow + 0.15 do
+        table.remove(data.History, 1)
+    end
+
+    local speed = 0
+    local windowVy = currentVy
+    local first = data.History[1]
+    local span = now - first.Time
+
+    if span >= Config.SpeedWindow * 0.7 then
+        local dx = position.X - first.Position.X
+        local dz = position.Z - first.Position.Z
+        speed = math.sqrt(dx * dx + dz * dz) / span
+        windowVy = (position.Y - first.Position.Y) / span
+    end
+
+    data.Speed = speed
+
+    if speed > 3 then
+        data.Moved = (data.Moved or 0) + 1
+    end
+
+    if data.IsBg then
+        data.PeakSpeed *= 0.995
+    end
+
+    if speed > data.PeakSpeed then
+        data.PeakSpeed = speed
+    end
+
+    local allowed = AllowedSpeed(humanoid)
+    data.Allowed = allowed
+
+    local mover, moverClass = HasMover(data, character, now)
+
+    if mover then
+        data.MoverSince = data.MoverSince or now
+    else
+        data.MoverSince = nil
+    end
+
+    local moverNote = mover and ("; có vật đẩy " .. tostring(moverClass) .. " gắn trên nhân vật (có thể do game, nhưng cũng là cách script hack hay dùng)") or ""
+
+    if data.MoverSince and now - data.MoverSince > 4 then
+        AddEvidence(
+            player,
+            "ANOM_MOVER",
+            12,
+            20,
+            "Vật đẩy " .. tostring(moverClass) .. " gắn liên tục trên nhân vật hơn 4 giây (dấu hiệu phụ)"
+        )
+    end
+
+    if not platform and Streak(data, "speed", speed > allowed) >= Config.SpeedStreak then
+        AddEvidence(
+            player,
+            "SPEED",
+            45,
+            Config.SpeedNeed,
+            "Chạy ngang " .. FormatNumber(speed) .. " studs/s (trung bình " .. FormatNumber(span) .. "s), vượt mức cho phép " .. FormatNumber(allowed) .. " (WalkSpeed hiển thị " .. FormatNumber(humanoid.WalkSpeed) .. ", tốc độ hợp lệ đã học từ bạn " .. FormatNumber(Baseline.LocalSpeed) .. "); nhanh nhất " .. FormatNumber(data.PeakSpeed) .. " studs/s, vượt liên tục " .. data.Streak.speed .. " lần đo; không ngồi xe, không đứng trên nền di chuyển, không vừa hồi sinh" .. moverNote,
+            speed > allowed * 1.8 and 2 or 1
+        )
+    end
+
+    local airborne = gap == nil or gap > Config.AirGap
+
+    if airborne then
+        if not data.AirStart then
+            data.AirStart = now
+            data.AirStartY = position.Y
+            data.AirMaxY = position.Y
+            data.AirJumps = 0
+            data.AirJumpLast = now
+            data.AirJumpFlag = false
+            data.AirFlag = false
+        end
+
+        data.AirMaxY = math.max(data.AirMaxY, position.Y)
+
+        local airTime = now - data.AirStart
+        local gain = data.AirMaxY - data.AirStartY
+
+        if gain > data.GainMax then
+            data.GainMax = gain
+        end
+
+        if not HasAirTool(character) and not (airTime >= 1.5 and InWater(data, position, now)) then
+            local falling = windowVy < Config.FlightFallSpeed
+            local fly = airTime >= Config.FlightTime and not falling
+            local hover = Streak(data, "hover", airTime >= Config.HoverTime and math.abs(windowVy) <= Config.HoverVelocity) >= 4
+
+            if fly or hover then
+                AddEvidence(
+                    player,
+                    "FLY",
+                    50,
+                    Config.FlightNeed,
+                    "Ở trên không liên tục " .. FormatNumber(airTime) .. "s, cách đất " .. (gap and FormatNumber(gap) or "rất xa") .. " studs, vận tốc dọc trung bình " .. FormatNumber(windowVy) .. " studs/s (nhảy hoặc rơi bình thường không thể giữ độ cao quá " .. FormatNumber(Config.FlightTime) .. "s), đã lên cao " .. FormatNumber(gain) .. " studs, tầm nhảy tối đa " .. FormatNumber(jumpLimit) .. "; không ngồi xe, không bơi, không cầm đồ bay của game" .. moverNote
+                )
+            end
+
+            if gain > jumpLimit * Config.SuperJumpMargin + 3 and not data.AirFlag and airTime < Config.FlightTime then
+                data.AirFlag = true
+                table.insert(data.SuperTimes, now)
+                Trim(data.SuperTimes, now, Config.BgLife)
+
+                AddEvidence(
+                    player,
+                    "SUPERJUMP",
+                    45,
+                    2,
+                    "Nhảy lên cao " .. FormatNumber(gain) .. " studs trong một lần nhảy, tầm nhảy tối đa của nhân vật " .. FormatNumber(jumpLimit) .. " studs"
+                )
+            end
+        end
+
+        if last and prevClean and elapsed > 0 and now - data.AirJumpLast >= 0.3 and airTime >= 0.35 then
+            local kick = currentVy - data.LastVy + Workspace.Gravity * elapsed
+
+            if kick > JumpVelocity(humanoid) * Config.AirJumpRatio and currentVy > 12 then
+                data.AirJumps += 1
+                data.AirJumpLast = now
+                data.AirJumpMax = math.max(data.AirJumpMax, data.AirJumps)
+
+                if data.AirJumps >= Config.AirJumpPerAir and not data.AirJumpFlag then
+                    data.AirJumpFlag = true
+                    table.insert(data.AirJumpTimes, now)
+                    Trim(data.AirJumpTimes, now, Config.BgLife)
+
+                    AddEvidence(
+                        player,
+                        "INFJUMP",
+                        45,
+                        Config.AirJumpNeed,
+                        "Bật nhảy thêm " .. data.AirJumps .. " lần khi đang trên không (lực bật +" .. FormatNumber(kick) .. " studs/s so với rơi tự do)"
+                    )
+                end
+            end
+        end
+    else
+        data.AirStart = nil
+        data.Streak.hover = 0
+    end
+
+    local angular = root.AssemblyAngularVelocity.Magnitude
+    local turn = 0
+
+    if lastLook and prevClean then
+        local a = Vector3.new(look.X, 0, look.Z)
+        local b = Vector3.new(lastLook.X, 0, lastLook.Z)
+
+        if a.Magnitude > 0.2 and b.Magnitude > 0.2 then
+            turn = math.acos(math.clamp(a.Unit:Dot(b.Unit), -1, 1))
+        end
+    end
+
+    data.Spin = math.max(angular, turn / math.max(elapsed, 0.05))
+
+    table.insert(data.SpinHist, (turn > Config.SpinTurnSample or angular > Config.SpinAngular) and 1 or 0)
+
+    while #data.SpinHist > Config.SpinWindow do
+        table.remove(data.SpinHist, 1)
+    end
+
+    if #data.SpinHist >= Config.SpinWindow then
+        local total = 0
+
+        for _, value in ipairs(data.SpinHist) do
+            total += value
+        end
+
+        if total >= Config.SpinHits then
+            data.SpinUntil = now + 1.5
+            data.SpinHist = {}
+
+            AddEvidence(
+                player,
+                "SPIN",
+                40,
+                Config.SpinNeed,
+                "Thân xoay liên tục: " .. total .. "/" .. Config.SpinWindow .. " lần đo liên tiếp có góc quay lớn (vận tốc góc " .. FormatNumber(angular) .. " rad/s), không ngồi xe, không bị hất"
+            )
+
+            local near, distance = NearestOther(player, position, Config.SpinFlingNear)
+
+            if near then
+                AddEvidence(
+                    player,
+                    "FLING",
+                    50,
+                    4,
+                    "Xoay tốc độ cao sát người chơi " .. near.Name .. " (cách " .. FormatNumber(distance) .. " studs)"
+                )
+            end
+        end
+    end
+
+    local upDot = root.CFrame.UpVector.Y
+
+    if Streak(data, "tilt", upDot < Config.TiltDot) >= 1 then
+        AddEvidence(
+            player,
+            "ANOM_ORIENT",
+            22,
+            Config.TiltNeed,
+            "Thân nghiêng bất thường kéo dài (độ dốc dọc " .. FormatNumber(upDot) .. ", bình thường gần 1.0) trong khi không ngã, không ngồi, không bị đẩy"
+        )
+    end
+
+    local delta = nil
+
+    if last and prevClean then
+        delta = position - last
+    end
+
+    if delta and lastDelta then
+        local a = delta.Magnitude
+        local b = lastDelta.Magnitude
+
+        if a > Config.JitterDistance and b > Config.JitterDistance and delta:Dot(lastDelta) < -0.5 * a * b then
+            AddEvidence(
+                player,
+                "ANOM_JITTER",
+                25,
+                Config.JitterNeed,
+                "Vị trí rung lắc đảo chiều liên tục (" .. FormatNumber(a) .. " rồi " .. FormatNumber(b) .. " studs mỗi lần đo theo hướng ngược nhau)"
+            )
+        end
+    end
+
+    data.LastDelta = delta
+
+    local floorKnown = Floor.Y ~= nil and Floor.Samples >= Config.FloorSamples
+
+    if floorKnown
+        and gap == nil
+        and position.Y < Floor.Y - Config.UndergroundMargin
+        and position.Y > Workspace.FallenPartsDestroyHeight + 20
+        and windowVy > -25 then
+
+        AddEvidence(
+            player,
+            "UNDERGROUND",
+            50,
+            Config.UndergroundNeed,
+            "Ở độ cao Y " .. FormatNumber(position.Y) .. ", thấp hơn mặt sàn thấp nhất đã đo (" .. FormatNumber(Floor.Y) .. ") tới " .. FormatNumber(Floor.Y - position.Y) .. " studs, bên dưới không có vật đỡ nhưng không rơi (vận tốc dọc " .. FormatNumber(windowVy) .. ")"
+        )
+    end
+
+    Probe.CFrame = CFrame.new(position)
+
+    local insidePart = nil
+    local insideMesh = nil
+    local ok, parts = pcall(Workspace.GetPartsInPart, Workspace, Probe, WallParams)
+
+    if ok then
+        for _, part in ipairs(parts) do
+            local kind = SolidKind(part, root)
+
+            if kind == "part" then
+                insidePart = part
+                break
+            elseif kind == "mesh" and not insideMesh then
+                insideMesh = part
+            end
+        end
+    end
+
+    if Streak(data, "inside", insidePart ~= nil) >= Config.NoclipInside and insidePart then
+        AddEvidence(
+            player,
+            "NOCLIP_INSIDE",
+            50,
+            Config.NoclipNeed,
+            "Tâm nhân vật nằm trong vật thể đặc '" .. insidePart.Name .. "' (cố định, va chạm bật, đúng nhóm va chạm) liên tục " .. data.Streak.inside .. " lần đo, vật lý bình thường không cho phép"
+        )
+    end
+
+    if not insidePart and Streak(data, "insidemesh", insideMesh ~= nil) >= Config.NoclipInside and insideMesh then
+        AddEvidence(
+            player,
+            "NOCLIP_MESH",
+            45,
+            Config.MeshNeed,
+            "Tâm nhân vật nằm trong vật thể dạng mesh '" .. insideMesh.Name .. "' liên tục " .. data.Streak.insidemesh .. " lần đo (mesh kém chính xác hơn nên cần số lần xác nhận cao hơn)"
+        )
+    end
+
+    if delta and elapsed <= 0.25 and not platform then
+        local distance = delta.Magnitude
+
+        if distance > 0.8 and distance < 20 then
+            local result = Workspace:Raycast(last, delta, PathParams)
+
+            if result and SolidKind(result.Instance, root) then
+                AddEvidence(
+                    player,
+                    "NOCLIP_PATH",
+                    40,
+                    Config.PathNeed,
+                    "Đi xuyên qua '" .. result.Instance.Name .. "' khi di chuyển " .. FormatNumber(distance) .. " studs trong " .. FormatNumber(elapsed * 1000) .. "ms mà không có đường đi vòng"
+                )
+            end
+        end
+    end
+
+    data.LastVy = currentVy
+    data.PrevClean = true
+end
+
+Parts[5] = true
+assert(Parts and Parts[5], "[CheatReveal] Thiếu PHẦN 5/14, hãy dán đủ theo thứ tự")
+
+local FlagWords = {
+    "chams", "wallhack", "boxesp", "nameesp", "aimbot", "killaura",
+    "noclip", "speedhack", "flyhack", "exploit", "cheat", "hack"
+}
+
+local function NameFlagged(name)
+    local lower = string.lower(name)
+
+    for _, word in ipairs(FlagWords) do
+        if string.find(lower, "%f[%a]" .. word .. "%f[%A]") then
+            return word
+        end
+    end
+
+    return nil
+end
+
+local function IsAllowed(instance, character)
+    local current = instance
+
+    while current and current ~= character.Parent do
+        if current:GetAttribute("ACAllowed") then
+            return true
+        end
+
+        current = current.Parent
+    end
+
+    return false
+end
+
+local function ScanHumanoid(player)
+    local character, humanoid, root = GetParts(player)
+
+    if not character then
+        return
+    end
+
+    local found = {}
+
+    if humanoid.WalkSpeed > Config.WalkSpeedLimit then
+        table.insert(found, "WalkSpeed " .. FormatNumber(humanoid.WalkSpeed))
+    end
+
+    if humanoid.UseJumpPower then
+        if humanoid.JumpPower > Config.JumpPowerLimit then
+            table.insert(found, "JumpPower " .. FormatNumber(humanoid.JumpPower))
+        end
+    elseif humanoid.JumpHeight > Config.JumpPowerLimit / 5 then
+        table.insert(found, "JumpHeight " .. FormatNumber(humanoid.JumpHeight))
+    end
+
+    if humanoid.HipHeight > Config.HipHeightLimit then
+        table.insert(found, "HipHeight " .. FormatNumber(humanoid.HipHeight))
+    end
+
+    if humanoid.MaxHealth > 1000000 or humanoid.Health > 1000000 then
+        table.insert(found, "Máu " .. FormatNumber(humanoid.MaxHealth))
+    end
+
+    if #found > 0 then
+        AddEvidence(
+            player,
+            "ANOM_PROP",
+            12,
+            Config.StaticNeed,
+            "Thuộc tính Humanoid bất thường: " .. table.concat(found, ", ") .. " (chỉ là dấu hiệu phụ, có thể do cơ chế game)"
+        )
+    end
+
+    local large = {}
+    local head = character:FindFirstChild("Head")
+    local headSize = 0
+
+    if head and head:IsA("BasePart") then
+        headSize = math.max(head.Size.X, head.Size.Y, head.Size.Z)
+    end
+
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") and not IsAllowed(part, character) then
+            local size = math.max(part.Size.X, part.Size.Y, part.Size.Z)
+            local ratio = part == root and headSize > 0 and size > 5 and size > headSize * 3.2
+
+            if size > Config.BodyPartLimit or ratio then
+                table.insert(large, "'" .. part.Name .. "' " .. FormatNumber(size) .. " studs")
+            end
+        end
+    end
+
+    if #large > 0 then
+        AddEvidence(
+            player,
+            "HITBOX_SIZE",
+            38,
+            Config.StaticNeed,
+            "Bộ phận cơ thể lớn bất thường: " .. table.concat(large, ", ") .. " (giới hạn " .. Config.BodyPartLimit .. " studs, đầu " .. FormatNumber(headSize) .. " studs)"
+        )
+    end
+end
+
+local function ScanTools(player)
+    local character, _, root = GetParts(player)
+
+    if not character then
+        return
+    end
+
+    local tools = 0
+
+    for _, child in ipairs(character:GetChildren()) do
+        if child:IsA("Tool") then
+            tools += 1
+        end
+    end
+
+    if tools > 1 then
+        AddEvidence(
+            player,
+            "TOOLMULTI",
+            18,
+            Config.StaticNeed,
+            "Đang cầm cùng lúc " .. tools .. " vũ khí/công cụ (một số game cho phép nên chỉ là dấu hiệu phụ)"
+        )
+    end
+
+    local tool = character:FindFirstChildOfClass("Tool")
+
+    if not tool or IsAllowed(tool, character) then
+        return
+    end
+
+    local found = {}
+    local handle = tool:FindFirstChild("Handle")
+
+    if handle and handle:IsA("BasePart") then
+        local size = math.max(handle.Size.X, handle.Size.Y, handle.Size.Z)
+
+        if size > Config.ReachHandle then
+            table.insert(found, "cán '" .. tool.Name .. "' dài " .. FormatNumber(size) .. " studs")
+        end
+
+        local offset = (handle.Position - root.Position).Magnitude
+
+        if offset > Config.ReachOffset then
+            table.insert(found, "vũ khí '" .. tool.Name .. "' cách thân " .. FormatNumber(offset) .. " studs")
+        end
+    end
+
+    local checked = 0
+
+    for _, part in ipairs(tool:GetDescendants()) do
+        checked += 1
+
+        if checked > 80 then
+            break
+        end
+
+        if part:IsA("BasePart") and part ~= handle then
+            local size = math.max(part.Size.X, part.Size.Y, part.Size.Z)
+
+            if size > Config.ReachHandle * 1.5 then
+                table.insert(found, "vùng '" .. part.Name .. "' của '" .. tool.Name .. "' rộng " .. FormatNumber(size) .. " studs")
+                break
+            end
+        end
+    end
+
+    if #found > 0 then
+        AddEvidence(
+            player,
+            "REACH_HANDLE",
+            38,
+            Config.StaticNeed,
+            "Vũ khí kéo dài bất thường: " .. table.concat(found, "; ")
+        )
+    end
+end
+
+local function ScanObjects(player, bg)
+    local character = player.Character
+
+    if not character then
+        return
+    end
+
+    local checked = 0
+    local names = {}
+
+    for _, instance in ipairs(character:GetDescendants()) do
+        checked += 1
+
+        if not bg and checked % 150 == 0 then
+            task.wait()
+        end
+
+        if instance.Parent and not IsAllowed(instance, character) then
+            local word = NameFlagged(instance.Name)
+
+            if word and #names < 4 then
+                table.insert(names, "'" .. instance.Name .. "' (" .. instance.ClassName .. ")")
+            end
+        end
+    end
+
+    if #names > 0 then
+        AddEvidence(
+            player,
+            "ANOM_OBJ",
+            20,
+            Config.StaticNeed,
+            "Đối tượng có tên đáng ngờ gắn trên nhân vật: " .. table.concat(names, ", ")
+        )
+    end
+end
+
+local function RunStatic(player, bg)
+    if player == LocalPlayer or player.Parent ~= Players then
+        return
+    end
+
+    Safe(ScanHumanoid, player)
+    Safe(ScanTools, player)
+    Safe(ScanObjects, player, bg)
+end
+
+Parts[6] = true
+assert(Parts and Parts[6], "[CheatReveal] Thiếu PHẦN 6/14, hãy dán đủ theo thứ tự")
+
+local OldGui = PlayerGui:FindFirstChild("CheatRevealScanner")
+
+if OldGui then
+    OldGui:Destroy()
+end
+
+local OldLegacy = PlayerGui:FindFirstChild("UniversalPlayerScanner")
+
+if OldLegacy then
+    OldLegacy:Destroy()
+end
+
+local UI = {}
+
+local function Glass(object, radius, strong)
+    Corner(object, radius)
+
+    Create("UIGradient", {
+        Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(135, 140, 155)),
+        Rotation = 90
+    }, object)
+
+    local stroke = Stroke(object, Color3.fromRGB(255, 255, 255), strong and 0.6 or 0.84)
+
+    Create("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 0.7)
+        }),
+        Rotation = 90
+    }, stroke)
+
+    return object
+end
+
+local function Hover(button, normal, hover)
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundTransparency = hover}):Play()
+    end)
+
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundTransparency = normal}):Play()
+    end)
+end
+
+local function Button(parent, properties, radius)
+    properties.AutoButtonColor = false
+    properties.BorderSizePixel = 0
+
+    local normal = properties.BackgroundTransparency or 0
+    local button = Create("TextButton", properties, parent)
+
+    Corner(button, radius or 8)
+    Stroke(button, Color3.fromRGB(255, 255, 255), 0.8)
+    Hover(button, normal, math.max(normal - 0.2, 0))
+
+    return button
+end
+
+UI.Gui = Create("ScreenGui", {
+    Name = "CheatRevealScanner",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = false,
+    DisplayOrder = 999,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, PlayerGui)
+
+UI.Main = Create("Frame", {
+    Name = "Main",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.new(0.94, 0, 0.92, 0),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundColor3 = Config.Colors.Black,
+    BackgroundTransparency = 0.12,
+    BorderSizePixel = 0,
+    ClipsDescendants = true
+}, UI.Gui)
+
+Glass(UI.Main, 18, true)
+
+Create("UISizeConstraint", {
+    MaxSize = Vector2.new(900, 560),
+    MinSize = Vector2.new(300, 220)
+}, UI.Main)
+
+UI.Scale = Create("UIScale", {Scale = 1}, UI.Main)
+
+UI.Sheen = Create("Frame", {
+    Size = UDim2.new(1, 0, 0, 80),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BackgroundTransparency = 0.8,
+    BorderSizePixel = 0,
+    ZIndex = 0
+}, UI.Main)
+
+Create("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 1)
+    }),
+    Rotation = 90
+}, UI.Sheen)
+
+UI.Header = Create("Frame", {
+    Name = "Header",
+    Size = UDim2.new(1, 0, 0, 52),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0
+}, UI.Main)
+
+UI.Title = Create("TextLabel", {
+    Size = UDim2.new(1, -120, 0, 22),
+    Position = UDim2.fromOffset(16, 6),
+    BackgroundTransparency = 1,
+    Text = Config.Title,
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextScaled = true,
+    Font = Enum.Font.GothamBlack,
+    TextXAlignment = Enum.TextXAlignment.Left
+}, UI.Header)
+
+Create("UITextSizeConstraint", {MaxTextSize = 16, MinTextSize = 8}, UI.Title)
+
+Create("UIGradient", {
+    Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Config.Colors.Accent)
+}, UI.Title)
+
+Create("TextLabel", {
+    Size = UDim2.new(1, -120, 0, 14),
+    Position = UDim2.fromOffset(16, 30),
+    BackgroundTransparency = 1,
+    Text = Config.Version .. "  •  QUÉT NGẦM + QUÉT SÂU " .. Config.ScanDuration .. " GIÂY  •  18 LOẠI HACK",
+    TextColor3 = Config.Colors.Gray,
+    TextSize = 9,
+    Font = Enum.Font.GothamMedium,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextTruncate = Enum.TextTruncate.AtEnd
+}, UI.Header)
+
+UI.Minimize = Button(UI.Header, {
+    Size = UDim2.fromOffset(32, 28),
+    Position = UDim2.new(1, -78, 0, 10),
+    BackgroundColor3 = Config.Colors.Glass2,
+    BackgroundTransparency = 0.3,
+    Text = "—",
+    TextColor3 = Config.Colors.White,
+    TextSize = 15,
+    Font = Enum.Font.GothamBold
+}, 8)
+
+UI.Close = Button(UI.Header, {
+    Size = UDim2.fromOffset(32, 28),
+    Position = UDim2.new(1, -42, 0, 10),
+    BackgroundColor3 = Config.Colors.Red,
+    BackgroundTransparency = 0.45,
+    Text = "X",
+    TextColor3 = Config.Colors.White,
+    TextSize = 12,
+    Font = Enum.Font.GothamBold
+}, 8)
+
+UI.Divider = Create("Frame", {
+    Size = UDim2.new(1, -28, 0, 1),
+    Position = UDim2.fromOffset(14, 52),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BorderSizePixel = 0
+}, UI.Main)
+
+Create("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.55),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+}, UI.Divider)
+
+UI.Body = Create("Frame", {
+    Size = UDim2.new(1, -16, 1, -66),
+    Position = UDim2.fromOffset(8, 58),
+    BackgroundTransparency = 1
+}, UI.Main)
+
+UI.Side = Create("ScrollingFrame", {
+    Size = UDim2.new(0.34, -4, 1, 0),
+    BackgroundColor3 = Config.Colors.Glass,
+    BackgroundTransparency = 0.4,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 3,
+    ScrollBarImageColor3 = Config.Colors.Accent,
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y
+}, UI.Body)
+
+Glass(UI.Side, 14, false)
+
+Create("UIListLayout", {
+    Padding = UDim.new(0, 7),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, UI.Side)
+
+Create("UIPadding", {
+    PaddingTop = UDim.new(0, 8),
+    PaddingBottom = UDim.new(0, 8),
+    PaddingLeft = UDim.new(0, 8),
+    PaddingRight = UDim.new(0, 8)
+}, UI.Side)
+
+local function Stat(order, text, color)
+    local card = Create("Frame", {
+        LayoutOrder = order,
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0
+    }, UI.Side)
+
+    Corner(card, 8)
+    Stroke(card, Color3.fromRGB(255, 255, 255), 0.88)
+
+    return Create("TextLabel", {
+        Size = UDim2.new(1, -16, 1, 0),
+        Position = UDim2.fromOffset(8, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = color,
+        TextSize = 11,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, card)
+end
+
+UI.PlayerCount = Stat(1, "NGƯỜI CHƠI: 0", Config.Colors.White)
+UI.SuspiciousCount = Stat(2, "CÓ DÙNG HACK: 0", Config.Colors.Gray)
+UI.ScanState = Stat(3, "SẴN SÀNG", Config.Colors.Green)
+UI.BgState = Stat(4, "NGẦM: BẬT", Config.Colors.Green)
+
+UI.ProgressBack = Create("Frame", {
+    LayoutOrder = 5,
+    Size = UDim2.new(1, 0, 0, 8),
+    BackgroundColor3 = Config.Colors.Glass2,
+    BackgroundTransparency = 0.3,
+    BorderSizePixel = 0
+}, UI.Side)
+
+Corner(UI.ProgressBack, 5)
+
+UI.ProgressFill = Create("Frame", {
+    Size = UDim2.new(0, 0, 1, 0),
+    BackgroundColor3 = Config.Colors.Accent,
+    BorderSizePixel = 0
+}, UI.ProgressBack)
+
+Corner(UI.ProgressFill, 5)
+
+Create("UIGradient", {
+    Color = ColorSequence.new(Config.Colors.Accent, Config.Colors.Violet)
+}, UI.ProgressFill)
+
+UI.ProgressText = Create("TextLabel", {
+    LayoutOrder = 6,
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundTransparency = 1,
+    Text = "Quét ngầm đang theo dõi mọi người. Bấm TRA NGAY để quét sâu mọi người, hoặc TRA ở từng người (khoảng " .. Config.ScanDuration .. " giây).",
+    TextColor3 = Config.Colors.Gray,
+    TextSize = 9,
+    Font = Enum.Font.Gotham,
+    TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Top
+}, UI.Side)
+
+UI.Search = Create("TextBox", {
+    LayoutOrder = 7,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Config.Colors.Glass2,
+    BackgroundTransparency = 0.45,
+    BorderSizePixel = 0,
+    PlaceholderText = "Tìm tên người chơi...",
+    PlaceholderColor3 = Config.Colors.Gray,
+    Text = "",
+    TextColor3 = Config.Colors.White,
+    TextSize = 11,
+    Font = Enum.Font.Gotham,
+    ClearTextOnFocus = false
+}, UI.Side)
+
+Corner(UI.Search, 8)
+Stroke(UI.Search, Color3.fromRGB(255, 255, 255), 0.82)
+
+UI.Scan = Create("TextButton", {
+    Name = "ScanButton",
+    LayoutOrder = 8,
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    Text = "",
+    ClipsDescendants = true
+}, UI.Side)
+
+Corner(UI.Scan, 11)
+
+UI.ScanGradient = Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Config.Colors.Accent),
+        ColorSequenceKeypoint.new(0.5, Config.Colors.Violet),
+        ColorSequenceKeypoint.new(1, Config.Colors.Accent)
+    }),
+    Rotation = 0
+}, UI.Scan)
+
+UI.ScanStroke = Stroke(UI.Scan, Color3.fromRGB(255, 255, 255), 0.35, 1.5)
+UI.ScanScale = Create("UIScale", {Scale = 1}, UI.Scan)
+
+UI.Shimmer = Create("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Size = UDim2.new(0.22, 0, 2.4, 0),
+    Position = UDim2.new(-0.4, 0, 0.5, 0),
+    Rotation = 20,
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BackgroundTransparency = 0.8,
+    BorderSizePixel = 0,
+    ZIndex = 2
+}, UI.Scan)
+
+UI.ScanLabel = Create("TextLabel", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "◉  TRA NGAY",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 13,
+    Font = Enum.Font.GothamBlack,
+    ZIndex = 3
+}, UI.Scan)
+
+UI.BgButton = Button(UI.Side, {
+    LayoutOrder = 9,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Config.Colors.Green,
+    BackgroundTransparency = 0.5,
+    Text = "QUÉT NGẦM: BẬT",
+    TextColor3 = Config.Colors.White,
+    TextSize = 11,
+    Font = Enum.Font.GothamBold
+}, 9)
+
+UI.TestButton = Button(UI.Side, {
+    LayoutOrder = 10,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Config.Colors.Accent,
+    BackgroundTransparency = 0.55,
+    Text = "TỰ TEST",
+    TextColor3 = Config.Colors.White,
+    TextSize = 11,
+    Font = Enum.Font.GothamBold
+}, 9)
+
+UI.ResetButton = Button(UI.Side, {
+    LayoutOrder = 11,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = Config.Colors.Red,
+    BackgroundTransparency = 0.6,
+    Text = "XÓA DỮ LIỆU",
+    TextColor3 = Config.Colors.White,
+    TextSize = 11,
+    Font = Enum.Font.GothamBold
+}, 9)
+
+UI.List = Create("ScrollingFrame", {
+    Name = "PlayerList",
+    Size = UDim2.new(0.66, -4, 1, 0),
+    Position = UDim2.new(0.34, 4, 0, 0),
+    BackgroundColor3 = Config.Colors.Glass,
+    BackgroundTransparency = 0.4,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 4,
+    ScrollBarImageColor3 = Config.Colors.Accent,
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y
+}, UI.Body)
+
+Glass(UI.List, 14, false)
+
+Create("UIListLayout", {
+    Padding = UDim.new(0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, UI.List)
+
+Create("UIPadding", {
+    PaddingTop = UDim.new(0, 8),
+    PaddingBottom = UDim.new(0, 8),
+    PaddingLeft = UDim.new(0, 8),
+    PaddingRight = UDim.new(0, 8)
+}, UI.List)
+
+UI.Empty = Create("TextLabel", {
+    LayoutOrder = 100000,
+    Size = UDim2.new(1, 0, 0, 60),
+    BackgroundTransparency = 1,
+    Text = "Chưa có người chơi khác trong server.",
+    TextColor3 = Config.Colors.Gray,
+    TextSize = 11,
+    Font = Enum.Font.Gotham,
+    Visible = false
+}, UI.List)
+
+UI.Floating = Create("TextButton", {
+    Name = "ScannerIcon",
+    Size = UDim2.fromOffset(52, 52),
+    Position = UDim2.new(0, 14, 0.5, 0),
+    BackgroundColor3 = Config.Colors.Black,
+    BackgroundTransparency = 0.15,
+    BorderSizePixel = 0,
+    AutoButtonColor = false,
+    Text = "◉",
+    TextColor3 = Config.Colors.Accent,
+    TextSize = 24,
+    Font = Enum.Font.GothamBold,
+    Visible = false,
+    ZIndex = 50
+}, UI.Gui)
+
+Corner(UI.Floating, 26)
+UI.FloatStroke = Stroke(UI.Floating, Config.Colors.Accent, 0.15, 1.5)
+Hover(UI.Floating, 0.15, 0)
+
+Parts[7] = true
+assert(Parts and Parts[7], "[CheatReveal] Thiếu PHẦN 7/14, hãy dán đủ theo thứ tự")
+
+local function PlayScream()
+    local id = Config.ScreamId ~= "" and Config.ScreamId or Config.FallbackSoundId
+
+    for _, speed in ipairs({1, 0.75}) do
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = id
+            sound.Volume = Config.ScreamVolume
+            sound.PlaybackSpeed = speed
+            sound.Parent = SoundService
+            sound:Play()
+            Debris:AddItem(sound, 8)
+        end)
+    end
+end
+
+local function SetVisible(visible)
+    if State.Destroyed then
+        return
+    end
+
+    PlayScream()
+
+    UI.Main.Visible = visible
+    UI.Floating.Visible = (not visible) or State.Spectating ~= nil
+
+    if visible then
+        UI.Scale.Scale = 0.88
+
+        TweenService:Create(
+            UI.Scale,
+            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Scale = 1}
+        ):Play()
+    end
+end
+
+local function Ripple()
+    local circle = Create("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        ZIndex = 2
+    }, UI.Scan)
+
+    Corner(circle, 999)
+
+    TweenService:Create(
+        circle,
+        TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {Size = UDim2.fromOffset(340, 340), BackgroundTransparency = 1}
+    ):Play()
+
+    Debris:AddItem(circle, 0.6)
+end
+
+local function Notify(text, color)
+    if State.Destroyed then
+        return
+    end
+
+    local toast = UI.Toast
+
+    if not toast then
+        local frame = Create("Frame", {
+            Name = "Toast",
+            AnchorPoint = Vector2.new(0.5, 0),
+            Size = UDim2.fromOffset(320, 30),
+            Position = UDim2.new(0.5, 0, 0, -50),
+            BackgroundColor3 = Config.Colors.Black,
+            BackgroundTransparency = 0.1,
+            BorderSizePixel = 0,
+            Visible = false,
+            ZIndex = 90
+        }, UI.Gui)
+
+        Corner(frame, 10)
+
+        local stroke = Stroke(frame, Config.Colors.Red, 0.2, 1.5)
+
+        local label = Create("TextLabel", {
+            Size = UDim2.new(1, -16, 1, 0),
+            Position = UDim2.fromOffset(8, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            TextColor3 = Config.Colors.White,
+            TextSize = 11,
+            Font = Enum.Font.GothamBold,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            ZIndex = 91
+        }, frame)
+
+        toast = {Frame = frame, Label = label, Stroke = stroke, Token = 0}
+        UI.Toast = toast
+    end
+
+    toast.Token += 1
+
+    local token = toast.Token
+
+    toast.Label.Text = text
+    toast.Label.TextColor3 = color
+    toast.Stroke.Color = color
+    toast.Frame.Visible = true
+    toast.Frame.Position = UDim2.new(0.5, 0, 0, -50)
+
+    TweenService:Create(
+        toast.Frame,
+        TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {Position = UDim2.new(0.5, 0, 0, 8)}
+    ):Play()
+
+    UI.FloatStroke.Color = color
+
+    task.delay(4, function()
+        if State.Destroyed or toast.Token ~= token then
+            return
+        end
+
+        TweenService:Create(
+            toast.Frame,
+            TweenInfo.new(0.25),
+            {Position = UDim2.new(0.5, 0, 0, -50)}
+        ):Play()
+
+        UI.FloatStroke.Color = Config.Colors.Accent
+
+        task.delay(0.3, function()
+            if not State.Destroyed and toast.Token == token and toast.Frame.Parent then
+                toast.Frame.Visible = false
+            end
+        end)
+    end)
+end
+
+local function AddLine(parent, text, color, size, order)
+    local line = Create("TextLabel", {
+        LayoutOrder = order,
+        Size = UDim2.new(1, -4, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        Text = text,
+        TextColor3 = color,
+        TextSize = size,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top
+    }, parent)
+
+    Corner(line, 8)
+    Stroke(line, color, 0.75)
+
+    Create("UIPadding", {
+        PaddingTop = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8)
+    }, line)
+
+    return line
+end
+
+local function RenderDetails()
+    local details = UI.Details
+
+    if not details or not details.Panel.Parent then
+        return
+    end
+
+    local player = details.Player
+    local data = ViewData(player)
+    local bg = BgView(player)
+    local active = data.Scanned and data.Score >= Config.HackThreshold
+    local lines = {}
+
+    local function Push(text, color, size)
+        table.insert(lines, {Text = text, Color = color, Size = size})
+    end
+
+    details.Info.Text = "Tốc độ: " .. FormatNumber(data.Speed) .. " (đỉnh " .. FormatNumber(data.PeakSpeed)
+        .. ")  |  Cho phép: " .. FormatNumber(data.Allowed) .. "  |  Chuẩn của bạn: " .. FormatNumber(Baseline.LocalSpeed)
+        .. "  |  Mẫu: " .. data.Clean .. "/" .. data.Samples .. "  |  Đã chạy: " .. (data.Moved or 0)
+        .. "  |  Bỏ qua: xe " .. data.Skip.Ride .. ", nền " .. data.Skip.Platform
+        .. ", ngã " .. data.Skip.Soft .. ", leo/bơi " .. data.Skip.State .. ", hồi sinh " .. data.Skip.Grace
+
+    if data.Scanning then
+        Push("Đang quét sâu người chơi này, kết quả và cơ sở kết luận sẽ hiện khi quét xong.", Config.Colors.Yellow, 11)
+    elseif not data.Scanned then
+        Push("Chưa quét sâu người chơi này. Bấm TRA để bắt đầu.", Config.Colors.Gray, 11)
+    else
+        Push("Điểm nghi vấn: " .. data.Score .. "%  |  " .. data.Status, GetColor(data.Score), 12)
+
+        if active then
+            Push("ĐANG SỬ DỤNG HACK: " .. HackSummary(data), Config.Colors.Red, 12)
+        elseif (data.Moved or 0) < Config.MinMoved then
+            Push("Chưa đủ dữ liệu: người này chưa chạy đủ lâu trong lúc quét. Hãy quét lại khi họ đang di chuyển.", Config.Colors.Yellow, 11)
+        else
+            Push("Chưa đủ cơ sở để kết luận người này dùng hack.", Config.Colors.Green, 11)
+        end
+
+        local index = 0
+
+        for _, evidence in ipairs(data.Details) do
+            if evidence.Confirmed then
+                if evidence.Known then
+                    Push(
+                        "◆ " .. evidence.Name .. "\nCơ sở kết luận: " .. evidence.Text .. "\nMức xác nhận: " .. evidence.Count .. "/" .. evidence.Need .. " lần đo (đã đủ ngưỡng)",
+                        GetColor(evidence.Weight * 2),
+                        10
+                    )
+                elseif evidence.Weight >= 18 then
+                    index += 1
+                    Push(
+                        "◇ Dấu hiệu bất thường #" .. index .. " (loại hack không xác định)\nCơ sở: " .. evidence.Text .. "\nMức xác nhận: " .. evidence.Count .. "/" .. evidence.Need .. " lần đo (đã đủ ngưỡng)",
+                        Config.Colors.Yellow,
+                        10
+                    )
+                else
+                    Push(
+                        "◇ Dấu hiệu phụ (tính thêm vào điểm)\nCơ sở: " .. evidence.Text .. "\nMức xác nhận: " .. evidence.Count .. "/" .. evidence.Need,
+                        Config.Colors.Gray,
+                        10
+                    )
+                end
+            end
+        end
+
+        for _, evidence in ipairs(data.Details) do
+            if not evidence.Confirmed then
+                Push(
+                    "… Chưa đủ xác nhận (không tính điểm): " .. evidence.Name .. " (" .. evidence.Count .. "/" .. evidence.Need .. ")\n" .. evidence.Text,
+                    Config.Colors.Gray,
+                    9
+                )
+            end
+        end
+
+        for _, note in ipairs(data.Notes) do
+            Push("ℹ " .. note, Config.Colors.Accent, 9)
+        end
+    end
+
+    local logs = {}
+
+    for _, entry in pairs(bg.Log) do
+        table.insert(logs, entry)
+    end
+
+    table.sort(logs, function(a, b)
+        if a.First ~= b.First then
+            return a.First < b.First
+        end
+
+        return a.Name < b.Name
+    end)
+
+    if #logs > 0 then
+        local now = os.time()
+
+        Push("QUÉT NGẦM ĐÃ GHI NHẬN " .. #logs .. " DẤU HIỆU (điểm cao nhất " .. bg.Peak .. "%)", Config.Colors.Red, 12)
+
+        for _, entry in ipairs(logs) do
+            Push(
+                "◆ " .. entry.Name .. "  (quét ngầm)\nCơ sở: " .. (entry.Text or "") .. "\nGhi nhận đầu tiên: " .. Ago(now - entry.First) .. " trước  |  gần nhất: " .. Ago(now - entry.Last) .. " trước",
+                Config.Colors.Orange,
+                10
+            )
+        end
+    elseif State.Bg then
+        Push("Quét ngầm đang theo dõi người này, chưa ghi nhận hack.", Config.Colors.Gray, 10)
+    else
+        Push("Quét ngầm đang tắt.", Config.Colors.Gray, 10)
+    end
+
+    Push(
+        "Lưu ý: đây là dữ liệu quan sát từ client, cần đối chiếu với cơ chế của game trước khi xử lý người chơi.",
+        Config.Colors.Gray,
+        10
+    )
+
+    local parts = {}
+
+    for _, line in ipairs(lines) do
+        table.insert(parts, line.Text)
+    end
+
+    local signature = table.concat(parts, "\n")
+
+    if signature == details.Signature then
+        return
+    end
+
+    details.Signature = signature
+
+    for _, child in ipairs(details.List:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+
+    for index, line in ipairs(lines) do
+        AddLine(details.List, line.Text, line.Color, line.Size, index)
+    end
+end
+
+local function ShowDetails(player)
+    if UI.Details and UI.Details.Panel.Parent then
+        UI.Details.Panel:Destroy()
+    end
+
+    local panel = Create("Frame", {
+        Name = "DetailsPanel",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(0.95, 0, 0.93, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        BackgroundColor3 = Config.Colors.Black,
+        BackgroundTransparency = 0.04,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 20
+    }, UI.Main)
+
+    Glass(panel, 14, true)
+
+    Create("TextLabel", {
+        Size = UDim2.new(1, -56, 0, 18),
+        Position = UDim2.fromOffset(12, 6),
+        BackgroundTransparency = 1,
+        Text = "PHÂN TÍCH: " .. player.DisplayName .. " (@" .. player.Name .. ")",
+        TextColor3 = Config.Colors.White,
+        TextSize = 12,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, panel)
+
+    local info = Create("TextLabel", {
+        Size = UDim2.new(1, -24, 0, 30),
+        Position = UDim2.fromOffset(12, 24),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 9,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top
+    }, panel)
+
+    local exit = Button(panel, {
+        Size = UDim2.fromOffset(30, 28),
+        Position = UDim2.new(1, -38, 0, 6),
+        BackgroundColor3 = Config.Colors.Red,
+        BackgroundTransparency = 0.4,
+        Text = "X",
+        TextColor3 = Config.Colors.White,
+        TextSize = 12,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local list = Create("ScrollingFrame", {
+        Size = UDim2.new(1, -20, 1, -64),
+        Position = UDim2.fromOffset(10, 56),
+        BackgroundColor3 = Config.Colors.Glass,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Config.Colors.Accent,
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y
+    }, panel)
+
+    Corner(list, 10)
+
+    Create("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, list)
+
+    Create("UIPadding", {
+        PaddingTop = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 6),
+        PaddingRight = UDim.new(0, 6)
+    }, list)
+
+    UI.Details = {Panel = panel, Info = info, List = list, Player = player, Signature = nil}
+
+    exit.MouseButton1Click:Connect(function()
+        panel:Destroy()
+
+        if UI.Details and UI.Details.Panel == panel then
+            UI.Details = nil
+        end
+    end)
+
+    RenderDetails()
+end
+
+Parts[8] = true
+assert(Parts and Parts[8], "[CheatReveal] Thiếu PHẦN 8/14, hãy dán đủ theo thứ tự")
+
+local Sim = {
+    Panel = nil,
+    Player = nil,
+    Pos = nil,
+    Conns = {},
+    ShowOff = false,
+    Collapsed = false,
+    Stamp = nil,
+    Ui = nil,
+    Toggles = setmetatable({}, {__mode = "k"})
+}
+
+local RequestScan = nil
+local StopSpectating = nil
+local Spec = {Ui = nil}
+
+function Spec.Hide(character)
+    for _, child in ipairs(character:GetChildren()) do
+        local part = nil
+
+        if child.Name == "Head" and child:IsA("BasePart") then
+            part = child
+        elseif child:IsA("Accessory") then
+            part = child:FindFirstChild("Handle")
+        end
+
+        if part and part:IsA("BasePart") then
+            part.LocalTransparencyModifier = 1
+            State.Hidden[part] = true
+        end
+    end
+end
+
+function Spec.Unhide()
+    for part in pairs(State.Hidden) do
+        if part.Parent then
+            part.LocalTransparencyModifier = 0
+        end
+
+        State.Hidden[part] = nil
+    end
+end
+
+function Spec.Apply()
+    local player = State.Spectating
+    local camera = Workspace.CurrentCamera
+
+    if not player or not camera then
+        return
+    end
+
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if root and root:IsA("BasePart") then
+        pcall(function()
+            LocalPlayer.ReplicationFocus = root
+        end)
+    end
+
+    if State.SpecMode == "third" and humanoid then
+        Spec.Unhide()
+        camera.CameraType = Enum.CameraType.Custom
+        camera.CameraSubject = humanoid
+    end
+end
+
+function Spec.Step()
+    local player = State.Spectating
+    local camera = Workspace.CurrentCamera
+
+    if not player or not camera or State.SpecMode ~= "first" then
+        return
+    end
+
+    local character = player.Character
+    local head = character and character:FindFirstChild("Head")
+
+    if not head or not head:IsA("BasePart") then
+        return
+    end
+
+    Spec.Hide(character)
+
+    local target = head.CFrame * CFrame.new(0, 0.1, -0.7)
+
+    if camera.CameraType ~= Enum.CameraType.Scriptable then
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = target
+    else
+        camera.CFrame = camera.CFrame:Lerp(target, 0.5)
+    end
+
+    camera.FieldOfView = 80
+end
+
+function Spec.GetCard()
+    if Spec.Ui then
+        return Spec.Ui
+    end
+
+    local frame = Create("Frame", {
+        Name = "SpectateCard",
+        LayoutOrder = 0,
+        Size = UDim2.new(1, 0, 0, 176),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        Visible = false
+    }, UI.Side)
+
+    Corner(frame, 10)
+    Stroke(frame, Config.Colors.Accent, 0.4)
+
+    local title = Create("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 16),
+        Position = UDim2.fromOffset(8, 6),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Config.Colors.White,
+        TextSize = 11,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, frame)
+
+    local info = Create("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 28),
+        Position = UDim2.fromOffset(8, 24),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 9,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top
+    }, frame)
+
+    local grid = Create("Frame", {
+        Size = UDim2.new(1, -16, 0, 108),
+        Position = UDim2.fromOffset(8, 58),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0
+    }, frame)
+
+    Create("UIGridLayout", {
+        CellSize = UDim2.new(0.5, -3, 0, 24),
+        CellPadding = UDim2.fromOffset(6, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        FillDirection = Enum.FillDirection.Horizontal
+    }, grid)
+
+    local view = Button(grid, {
+        LayoutOrder = 1,
+        BackgroundColor3 = Config.Colors.Accent,
+        BackgroundTransparency = 0.4,
+        Text = "GÓC: THỨ NHẤT",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local stop = Button(grid, {
+        LayoutOrder = 2,
+        BackgroundColor3 = Config.Colors.Red,
+        BackgroundTransparency = 0.4,
+        Text = "DỪNG XEM",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local previous = Button(grid, {
+        LayoutOrder = 3,
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.35,
+        Text = "◀ TRƯỚC",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local forward = Button(grid, {
+        LayoutOrder = 4,
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.35,
+        Text = "SAU ▶",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local simButton = Button(grid, {
+        LayoutOrder = 5,
+        BackgroundColor3 = Config.Colors.Red,
+        BackgroundTransparency = 0.5,
+        Text = "MÔ PHỎNG",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local scanButton = Button(grid, {
+        LayoutOrder = 6,
+        BackgroundColor3 = Config.Colors.Violet,
+        BackgroundTransparency = 0.4,
+        Text = "TRA",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local detailButton = Button(grid, {
+        LayoutOrder = 7,
+        BackgroundColor3 = Config.Colors.Accent,
+        BackgroundTransparency = 0.5,
+        Text = "CHI TIẾT",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    local hideButton = Button(grid, {
+        LayoutOrder = 8,
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.35,
+        Text = "ẨN GIAO DIỆN",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 7)
+
+    view.MouseButton1Click:Connect(function()
+        State.SpecMode = State.SpecMode == "first" and "third" or "first"
+        Spec.Unhide()
+        view.Text = State.SpecMode == "first" and "GÓC: THỨ NHẤT" or "GÓC: THỨ BA"
+
+        local camera = Workspace.CurrentCamera
+
+        if camera and State.SpecMode == "third" then
+            camera.CameraType = Enum.CameraType.Custom
+            camera.FieldOfView = State.OldFov
+        end
+
+        Spec.Apply()
+    end)
+
+    previous.MouseButton1Click:Connect(function()
+        Spec.Next(-1)
+    end)
+
+    forward.MouseButton1Click:Connect(function()
+        Spec.Next(1)
+    end)
+
+    stop.MouseButton1Click:Connect(function()
+        StopSpectating()
+    end)
+
+    simButton.MouseButton1Click:Connect(function()
+        local target = State.Spectating
+
+        if not target then
+            return
+        end
+
+        if Sim.Panel and Sim.Player == target then
+            Sim.Close()
+        else
+            Safe(Sim.Show, target)
+        end
+    end)
+
+    scanButton.MouseButton1Click:Connect(function()
+        local target = State.Spectating
+
+        if target and target.Parent == Players and RequestScan then
+            RequestScan({target}, true)
+        end
+    end)
+
+    detailButton.MouseButton1Click:Connect(function()
+        local target = State.Spectating
+
+        if not target then
+            return
+        end
+
+        local details = UI.Details
+
+        if details and details.Player == target and details.Panel.Parent then
+            details.Panel:Destroy()
+            UI.Details = nil
+        else
+            Safe(ShowDetails, target)
+        end
+    end)
+
+    hideButton.MouseButton1Click:Connect(function()
+        SetVisible(false)
+    end)
+
+    Spec.Ui = {
+        Frame = frame,
+        Title = title,
+        Info = info,
+        View = view,
+        Sim = simButton,
+        Scan = scanButton,
+        Detail = detailButton
+    }
+
+    return Spec.Ui
+end
+
+function Spec.Begin(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local camera = Workspace.CurrentCamera
+
+    if not humanoid or not camera then
+        UI.ProgressText.Text = "Không thể quan sát " .. player.Name .. " (chưa có nhân vật)."
+        return false
+    end
+
+    local first = State.Spectating == nil
+
+    if first then
+        State.CameraSubject = camera.CameraSubject
+        State.OldFov = camera.FieldOfView
+        RunService:BindToRenderStep("CheatRevealSpectate", Enum.RenderPriority.Camera.Value + 1, Spec.Step)
+    end
+
+    Spec.Unhide()
+    State.Spectating = player
+    State.SpecMode = "first"
+
+    local ui = Spec.GetCard()
+
+    ui.Frame.Visible = true
+    ui.View.Text = "GÓC: THỨ NHẤT"
+    ui.Title.Text = "ĐANG XEM: " .. player.DisplayName .. " (@" .. player.Name .. ")"
+
+    camera.CameraType = Enum.CameraType.Scriptable
+    Spec.Apply()
+
+    if first then
+        UI.Main.Visible = false
+    end
+
+    UI.Floating.Visible = true
+    UI.ProgressText.Text = "ĐANG QUAN SÁT: " .. player.Name .. ". Bấm nút ◉ để mở hoặc ẩn giao diện chính."
+
+    if Sim.Panel then
+        Safe(Sim.Show, player)
+    end
+
+    if UI.Details and UI.Details.Panel.Parent then
+        Safe(ShowDetails, player)
+    end
+
+    return true
+end
+
+function Spec.Next(step)
+    local list = {}
+
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= LocalPlayer then
+            table.insert(list, other)
+        end
+    end
+
+    if #list == 0 then
+        StopSpectating()
+        return
+    end
+
+    table.sort(list, function(a, b)
+        return a.Name < b.Name
+    end)
+
+    local index = table.find(list, State.Spectating) or 0
+    local count = #list
+
+    for _ = 1, count do
+        index = (index - 1 + step) % count + 1
+
+        if Spec.Begin(list[index]) then
+            return
+        end
+    end
+end
+
+function Spec.Update()
+    local player = State.Spectating
+
+    if not player then
+        return
+    end
+
+    if player.Parent ~= Players then
+        StopSpectating()
+        return
+    end
+
+    Spec.Apply()
+
+    local ui = Spec.Ui
+
+    if not ui then
+        return
+    end
+
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local data = ViewData(player)
+    local speed = 0
+
+    if root and root:IsA("BasePart") then
+        local velocity = root.AssemblyLinearVelocity
+        speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+    end
+
+    local verdict = data.Scanned and data.Status or "CHƯA QUÉT SÂU"
+    local logCount = LogCount(BgView(player))
+
+    if logCount > 0 then
+        verdict = verdict .. "  |  Ngầm: " .. logCount .. " dấu hiệu"
+    end
+
+    ui.Info.Text = "Tốc độ ngang: " .. FormatNumber(speed) .. " studs/s  |  " .. verdict .. "  |  Điểm: " .. data.Score .. "%"
+
+    local simOpen = Sim.Panel ~= nil and Sim.Player == player
+    local details = UI.Details
+    local detailOpen = details ~= nil and details.Player == player and details.Panel.Parent ~= nil
+
+    ui.Sim.Text = simOpen and "ĐÓNG MÔ PHỎNG" or "MÔ PHỎNG"
+    ui.Detail.Text = detailOpen and "ĐÓNG CHI TIẾT" or "CHI TIẾT"
+    ui.Scan.Text = State.Scanning and ("QUÉT " .. math.floor(State.Progress) .. "%") or "TRA"
+end
+
+StopSpectating = function()
+    local was = State.Spectating ~= nil
+
+    State.Spectating = nil
+    State.SpecMode = "first"
+
+    if not was then
+        return
+    end
+
+    pcall(function()
+        RunService:UnbindFromRenderStep("CheatRevealSpectate")
+    end)
+
+    Spec.Unhide()
+
+    pcall(function()
+        LocalPlayer.ReplicationFocus = nil
+    end)
+
+    if Spec.Ui then
+        Spec.Ui.Frame.Visible = false
+    end
+
+    local camera = Workspace.CurrentCamera
+
+    if camera then
+        local character = LocalPlayer.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+        camera.CameraType = Enum.CameraType.Custom
+        camera.CameraSubject = humanoid or State.CameraSubject
+        camera.FieldOfView = State.OldFov
+    end
+
+    if not State.Destroyed then
+        UI.Floating.Visible = not UI.Main.Visible
+    end
+end
+
+local function Spectate(player)
+    if State.Spectating == player then
+        StopSpectating()
+        return
+    end
+
+    Spec.Begin(player)
+end
+
+Parts[9] = true
+assert(Parts and Parts[9], "[CheatReveal] Thiếu PHẦN 9/14, hãy dán đủ theo thứ tự")
+
+Sim.Features = {
+    {"SPEED", "Speed Hack"},
+    {"FLY", "Fly"},
+    {"NOCLIP", "Noclip"},
+    {"TELEPORT", "Teleport"},
+    {"INFJUMP", "Infinite Jump"},
+    {"SUPERJUMP", "Super Jump"},
+    {"UNDERGROUND", "Underground"},
+    {"KILLAURA", "Kill Aura"},
+    {"AUTOKILL", "Auto Kill"},
+    {"AUTOCLICK", "Auto Click"},
+    {"AUTOHEAL", "Auto Heal"},
+    {"REACH", "Reach"},
+    {"HITBOX", "Hitbox Expander"},
+    {"TOOLSPAM", "Tool Spam"},
+    {"TOOLMULTI", "Multi Tool"},
+    {"AUTOFARM", "Auto Farm"},
+    {"SPIN", "Spin"},
+    {"FLING", "Fling"}
+}
+
+function Sim.Close()
+    for _, connection in ipairs(Sim.Conns) do
+        connection:Disconnect()
+    end
+
+    table.clear(Sim.Conns)
+
+    if Sim.Panel then
+        Sim.Pos = {X = Sim.Panel.Position.X.Offset, Y = Sim.Panel.Position.Y.Offset}
+        Sim.Panel:Destroy()
+    end
+
+    Sim.Panel = nil
+    Sim.Player = nil
+    Sim.Ui = nil
+    Sim.Stamp = nil
+end
+
+function Sim.Clamp(panel, width, height)
+    local area = UI.Gui.AbsoluteSize
+    local x = math.clamp(panel.Position.X.Offset, 0, math.max(area.X - width, 0))
+    local y = math.clamp(panel.Position.Y.Offset, 0, math.max(area.Y - height, 0))
+
+    panel.Position = UDim2.fromOffset(x, y)
+end
+
+function Sim.StampOf(player)
+    local data = ViewData(player)
+    local bg = BgView(player)
+
+    return tostring(data.Scanned) .. tostring(data.Scanning) .. tostring(data.LastScan) .. "|" .. LogCount(bg)
+end
+
+function Sim.Value(key, evidence, data)
+    if string.sub(key, 1, 6) == "HIDDEN" then
+        return (evidence.Bg and "ngầm • " or "") .. (evidence.Text or ""), nil
+    elseif evidence.Bg then
+        return "ngầm • " .. (evidence.Text or ""), nil
+    elseif key == "SPEED" then
+        local limit = math.max(data.Allowed, 1)
+        return "tốc độ " .. FormatNumber(data.PeakSpeed) .. " / cho phép " .. FormatNumber(data.Allowed), math.clamp(data.PeakSpeed / (limit * 3), 0.08, 1)
+    elseif key == "AUTOHEAL" then
+        return "hồi " .. #data.HealTimes .. " lần, xác nhận " .. evidence.Count .. "/" .. evidence.Need, nil
+    elseif key == "FLY" or key == "SUPERJUMP" then
+        return "độ cao " .. FormatNumber(data.GainMax) .. " studs", nil
+    end
+
+    return "xác nhận " .. evidence.Count .. "/" .. evidence.Need, nil
+end
+
+function Sim.Counts()
+    local ui = Sim.Ui
+
+    if not ui then
+        return
+    end
+
+    local on = 0
+
+    for _, record in ipairs(ui.Rows) do
+        if record.On then
+            on += 1
+        end
+    end
+
+    ui.OnLabel.Text = "ĐANG BẬT (" .. on .. ")"
+    ui.OffLabel.Text = "ĐANG TẮT (" .. (#ui.Rows - on) .. ")"
+end
+
+function Sim.MakeRow(parent, index, entry, player, data, delay, states)
+    local detected = entry.Evidence ~= nil
+    local value = nil
+    local fraction = nil
+
+    if detected then
+        value, fraction = Sim.Value(entry.Key, entry.Evidence, data)
+    end
+
+    local initial = states[entry.Key]
+
+    if initial == nil then
+        initial = detected
+    end
+
+    local row = Create("TextButton", {
+        Size = UDim2.new(1, -2, 0, 24),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.7,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = ""
+    }, parent)
+
+    Corner(row, 7)
+
+    local stroke = Stroke(row, Color3.fromRGB(255, 255, 255), 0.92)
+
+    local name = Create("TextLabel", {
+        Size = UDim2.new(1, -52, 0, 24),
+        Position = UDim2.fromOffset(8, 0),
+        BackgroundTransparency = 1,
+        Text = entry.Label,
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 11,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, row)
+
+    local subText = "@" .. player.Name .. "  •  QUÉT SÂU, CHECK"
+
+    if detected then
+        subText = "@" .. player.Name .. "  •  " .. value
+    end
+
+    local sub = Create("TextLabel", {
+        Size = UDim2.new(1, -52, 0, 12),
+        Position = UDim2.fromOffset(8, 19),
+        BackgroundTransparency = 1,
+        Text = subText,
+        TextColor3 = detected and Config.Colors.Orange or Config.Colors.Accent,
+        TextSize = 8,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Visible = false
+    }, row)
+
+    local barBack = Create("Frame", {
+        Size = UDim2.new(1, -60, 0, 4),
+        Position = UDim2.fromOffset(8, 36),
+        BackgroundColor3 = Config.Colors.Black,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0,
+        Visible = false
+    }, row)
+
+    Corner(barBack, 3)
+
+    local fill = Create("Frame", {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Config.Colors.Red,
+        BorderSizePixel = 0
+    }, barBack)
+
+    Corner(fill, 3)
+
+    local track = Create("Frame", {
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -8, 0, 4),
+        Size = UDim2.fromOffset(30, 16),
+        BackgroundColor3 = Color3.fromRGB(70, 74, 90),
+        BorderSizePixel = 0
+    }, row)
+
+    Corner(track, 8)
+
+    local knob = Create("Frame", {
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.fromOffset(12, 12),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, track)
+
+    Corner(knob, 6)
+
+    local record = {On = false, Row = row}
+
+    local function Apply(state, wait)
+        record.On = state
+
+        local height = 24
+
+        if state then
+            height = (detected and fraction) and 46 or 34
+        end
+
+        row.Size = UDim2.new(1, -2, 0, height)
+        row.LayoutOrder = state and index or 500 + index
+        row.BackgroundTransparency = state and 0.35 or 0.7
+        row.Visible = state or Sim.ShowOff
+
+        stroke.Color = state and (detected and Config.Colors.Red or Config.Colors.Accent) or Color3.fromRGB(255, 255, 255)
+        stroke.Transparency = state and 0.3 or 0.92
+
+        name.TextColor3 = state and Config.Colors.White or Config.Colors.Gray
+        name.Size = UDim2.new(1, -52, 0, state and 16 or 24)
+        name.Position = UDim2.fromOffset(8, state and 3 or 0)
+
+        sub.Visible = state
+        track.Position = UDim2.new(1, -8, 0, state and 8 or 4)
+
+        local showBar = state and detected and fraction ~= nil
+
+        barBack.Visible = showBar
+        fill.Size = UDim2.new(0, 0, 1, 0)
+
+        if showBar then
+            task.delay(wait or 0, function()
+                if fill.Parent then
+                    TweenService:Create(
+                        fill,
+                        TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                        {Size = UDim2.new(fraction, 0, 1, 0)}
+                    ):Play()
+                end
+            end)
+        end
+    end
+
+    local function Knob(state, wait)
+        local goalPosition = state and UDim2.fromOffset(16, 2) or UDim2.fromOffset(2, 2)
+        local goalColor = state and Config.Colors.Green or Color3.fromRGB(70, 74, 90)
+
+        task.delay(wait or 0, function()
+            if knob.Parent then
+                local info = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                TweenService:Create(knob, info, {Position = goalPosition}):Play()
+                TweenService:Create(track, info, {BackgroundColor3 = goalColor}):Play()
+            end
+        end)
+    end
+
+    Apply(initial, delay)
+
+    if initial then
+        Knob(true, delay)
+    end
+
+    row.MouseButton1Click:Connect(function()
+        local state = not record.On
+
+        states[entry.Key] = state
+        Apply(state, 0)
+        Knob(state, 0)
+        Sim.Counts()
+    end)
+
+    return record
+end
+
+function Sim.Show(player)
+    Sim.Close()
+
+    local data = ViewData(player)
+    local bg = BgView(player)
+
+    Sim.Stamp = Sim.StampOf(player)
+
+    local states = Sim.Toggles[player]
+
+    if not states or states.Stamp ~= data.LastScan then
+        states = {Stamp = data.LastScan}
+        Sim.Toggles[player] = states
+    end
+
+    local active = {}
+    local hidden = {}
+    local activeCount = 0
+
+    if data.Scanned then
+        for _, evidence in ipairs(data.Details) do
+            if evidence.Confirmed and evidence.Weight >= 18 then
+                local key = string.match(evidence.Id, "^%u+")
+
+                if KnownHacks[key] then
+                    local current = active[key]
+
+                    if not current then
+                        activeCount += 1
+                    end
+
+                    if not current or evidence.Count > current.Count then
+                        active[key] = evidence
+                    end
+                else
+                    table.insert(hidden, evidence)
+                end
+            end
+        end
+
+        if activeCount + #hidden == 0 and data.Score >= Config.HackThreshold then
+            table.insert(hidden, {Text = "nhiều dấu hiệu phụ cộng dồn vượt " .. Config.HackThreshold .. "%", Count = 1, Need = 1})
+        end
+    end
+
+    local manualHidden = #hidden
+
+    for _, entry in pairs(bg.Log) do
+        local item = {Text = entry.Text or "", Count = entry.Count or 1, Need = entry.Need or 1, Bg = true}
+
+        if entry.Known then
+            if not active[entry.Key] then
+                active[entry.Key] = item
+                activeCount += 1
+            end
+        elseif manualHidden == 0 then
+            table.insert(hidden, item)
+        end
+    end
+
+    local entries = {}
+
+    for _, feature in ipairs(Sim.Features) do
+        if active[feature[1]] then
+            table.insert(entries, {Key = feature[1], Label = feature[2], Evidence = active[feature[1]]})
+        end
+    end
+
+    for index, evidence in ipairs(hidden) do
+        table.insert(entries, {Key = "HIDDEN" .. index, Label = "Chức năng ẩn #" .. index, Evidence = evidence})
+    end
+
+    for _, feature in ipairs(Sim.Features) do
+        if not active[feature[1]] then
+            table.insert(entries, {Key = feature[1], Label = feature[2], Evidence = nil})
+        end
+    end
+
+    local total = activeCount + #hidden
+    local area = UI.Gui.AbsoluteSize
+    local width = math.min(270, math.max(area.X - 16, 200))
+    local maxHeight = math.min(300, math.max(area.Y - 16, 140))
+    local height = 120
+    local startX = math.max((area.X - width) / 2, 8)
+    local startY = math.max((area.Y - maxHeight) / 2, 8)
+
+    if State.Spectating then
+        startX = math.max(area.X - width - 8, 8)
+        startY = 8
+    end
+
+    if Sim.Pos then
+        startX = Sim.Pos.X
+        startY = Sim.Pos.Y
+    end
+
+    local panel = Create("Frame", {
+        Name = "SimPanel",
+        Size = UDim2.fromOffset(width, Sim.Collapsed and 38 or height),
+        Position = UDim2.fromOffset(startX, startY),
+        BackgroundColor3 = Config.Colors.Black,
+        BackgroundTransparency = 0.05,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 70
+    }, UI.Gui)
+
+    Glass(panel, 14, true)
+    Sim.Clamp(panel, width, Sim.Collapsed and 38 or height)
+
+    Sim.Panel = panel
+    Sim.Player = player
+
+    local header = Create("Frame", {
+        Name = "SimHeader",
+        Size = UDim2.new(1, 0, 0, 38),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0
+    }, panel)
+
+    local avatar = Create("ImageLabel", {
+        Size = UDim2.fromOffset(26, 26),
+        Position = UDim2.fromOffset(7, 6),
+        BackgroundColor3 = Config.Colors.Glass,
+        Image = "",
+        BorderSizePixel = 0
+    }, header)
+
+    Corner(avatar, 13)
+
+    task.spawn(function()
+        local ok, image = pcall(function()
+            return Players:GetUserThumbnailAsync(
+                player.UserId,
+                Enum.ThumbnailType.HeadShot,
+                Enum.ThumbnailSize.Size100x100
+            )
+        end)
+
+        if ok and avatar.Parent then
+            avatar.Image = image
+        end
+    end)
+
+    local title = Create("TextLabel", {
+        Size = UDim2.new(1, -106, 0, 14),
+        Position = UDim2.fromOffset(40, 4),
+        BackgroundTransparency = 1,
+        Text = "SCRIPT  •  SEVER",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 10,
+        Font = Enum.Font.GothamBlack,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, header)
+
+    Create("UIGradient", {
+        Color = ColorSequence.new(Config.Colors.Violet, Config.Colors.Accent)
+    }, title)
+
+    Create("TextLabel", {
+        Size = UDim2.new(1, -106, 0, 12),
+        Position = UDim2.fromOffset(40, 19),
+        BackgroundTransparency = 1,
+        Text = "@" .. player.Name,
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, header)
+
+    local collapse = Create("TextButton", {
+        Size = UDim2.fromOffset(24, 22),
+        Position = UDim2.new(1, -58, 0, 8),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = Sim.Collapsed and "+" or "—",
+        TextColor3 = Config.Colors.White,
+        TextSize = 13,
+        Font = Enum.Font.GothamBold
+    }, header)
+
+    Corner(collapse, 6)
+    Stroke(collapse, Color3.fromRGB(255, 255, 255), 0.8)
+
+    local close = Create("TextButton", {
+        Size = UDim2.fromOffset(24, 22),
+        Position = UDim2.new(1, -30, 0, 8),
+        BackgroundColor3 = Config.Colors.Red,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "X",
+        TextColor3 = Config.Colors.White,
+        TextSize = 11,
+        Font = Enum.Font.GothamBold
+    }, header)
+
+    Corner(close, 6)
+    Stroke(close, Color3.fromRGB(255, 255, 255), 0.8)
+
+    local list = Create("ScrollingFrame", {
+        Size = UDim2.new(1, -12, 1, -62),
+        Position = UDim2.fromOffset(6, 40),
+        BackgroundColor3 = Config.Colors.Glass,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Config.Colors.Accent,
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Visible = not Sim.Collapsed
+    }, panel)
+
+    Corner(list, 9)
+
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, list)
+
+    Create("UIPadding", {
+        PaddingTop = UDim.new(0, 5),
+        PaddingBottom = UDim.new(0, 5),
+        PaddingLeft = UDim.new(0, 5),
+        PaddingRight = UDim.new(0, 5)
+    }, list)
+
+    local note = Create("TextLabel", {
+        Size = UDim2.new(1, -12, 0, 14),
+        Position = UDim2.new(0, 6, 1, -18),
+        BackgroundTransparency = 1,
+        Text = "Giao diện, Chức năng phần mềm hack.",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 8,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Visible = not Sim.Collapsed
+    }, panel)
+
+    local statusText = "KHÔNG CÓ HACK NÀO ĐƯỢC XÁC NHẬN"
+    local statusColor = Config.Colors.Green
+
+    if data.Scanning then
+        statusText = "ĐANG QUÉT, CHỜ KẾT QUẢ..."
+        statusColor = Config.Colors.Yellow
+    elseif total > 0 then
+        statusText = "PHÁT HIỆN " .. total .. " CHỨC NĂNG HACK"
+        statusColor = Config.Colors.Red
+    elseif not data.Scanned then
+        statusText = "CHƯA QUÉT SÂU (BẤM TRA), VẪN BẬT/TẮT THỬ ĐƯỢC"
+        statusColor = Config.Colors.Gray
+    end
+
+    Create("TextLabel", {
+        LayoutOrder = 1,
+        Size = UDim2.new(1, -2, 0, 16),
+        BackgroundTransparency = 1,
+        Text = statusText,
+        TextColor3 = statusColor,
+        TextSize = 9,
+        Font = Enum.Font.GothamBlack,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, list)
+
+    local onHeader = Create("Frame", {
+        LayoutOrder = 5,
+        Size = UDim2.new(1, -2, 0, 20),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0
+    }, list)
+
+    local onLabel = Create("TextLabel", {
+        Size = UDim2.new(1, -62, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "ĐANG BẬT (0)",
+        TextColor3 = Config.Colors.Red,
+        TextSize = 10,
+        Font = Enum.Font.GothamBlack,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, onHeader)
+
+    local reset = Create("TextButton", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Size = UDim2.fromOffset(58, 16),
+        Position = UDim2.new(1, -2, 0.5, 0),
+        BackgroundColor3 = Config.Colors.Violet,
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "ĐẶT LẠI",
+        TextColor3 = Config.Colors.White,
+        TextSize = 8,
+        Font = Enum.Font.GothamBold
+    }, onHeader)
+
+    Corner(reset, 6)
+
+    local offHeader = Create("Frame", {
+        LayoutOrder = 500,
+        Size = UDim2.new(1, -2, 0, 20),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0
+    }, list)
+
+    local offLabel = Create("TextLabel", {
+        Size = UDim2.new(1, -62, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "ĐANG TẮT (0)",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 10,
+        Font = Enum.Font.GothamBlack,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, offHeader)
+
+    local offToggle = Create("TextButton", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Size = UDim2.fromOffset(50, 16),
+        Position = UDim2.new(1, -2, 0.5, 0),
+        BackgroundColor3 = Config.Colors.Accent,
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = Sim.ShowOff and "ẨN" or "HIỆN",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, offHeader)
+
+    Corner(offToggle, 6)
+
+    local ui = {Rows = {}, OnLabel = onLabel, OffLabel = offLabel}
+    Sim.Ui = ui
+
+    local delay = 0.2
+
+    for index, entry in ipairs(entries) do
+        local record = Sim.MakeRow(list, 10 + index, entry, player, data, delay, states)
+        table.insert(ui.Rows, record)
+
+        if record.On then
+            delay += 0.12
+        end
+    end
+
+    Sim.Counts()
+
+    offToggle.MouseButton1Click:Connect(function()
+        Sim.ShowOff = not Sim.ShowOff
+        offToggle.Text = Sim.ShowOff and "ẨN" or "HIỆN"
+
+        for _, record in ipairs(ui.Rows) do
+            record.Row.Visible = record.On or Sim.ShowOff
+        end
+    end)
+
+    reset.MouseButton1Click:Connect(function()
+        Sim.Toggles[player] = nil
+        Sim.Show(player)
+    end)
+
+    local function Fit()
+        if not panel.Parent then
+            return
+        end
+
+        height = math.clamp(40 + layout.AbsoluteContentSize.Y + 10 + 22, 110, maxHeight)
+
+        if not Sim.Collapsed then
+            panel.Size = UDim2.fromOffset(width, height)
+            Sim.Clamp(panel, width, height)
+        end
+    end
+
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(Fit)
+    task.defer(Fit)
+
+    collapse.MouseButton1Click:Connect(function()
+        Sim.Collapsed = not Sim.Collapsed
+        list.Visible = not Sim.Collapsed
+        note.Visible = not Sim.Collapsed
+        collapse.Text = Sim.Collapsed and "+" or "—"
+
+        local current = Sim.Collapsed and 38 or height
+        panel.Size = UDim2.fromOffset(width, current)
+        Sim.Clamp(panel, width, current)
+    end)
+
+    close.MouseButton1Click:Connect(Sim.Close)
+
+    local dragging = false
+    local dragStart = nil
+    local origin = nil
+    local dragInput = nil
+
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+
+            dragging = true
+            dragStart = input.Position
+            origin = panel.Position
+
+            if input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    header.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    table.insert(Sim.Conns, UserInputService.InputChanged:Connect(function(input)
+        if not dragging or input ~= dragInput or not panel.Parent then
+            return
+        end
+
+        local delta = input.Position - dragStart
+        local current = Sim.Collapsed and 38 or height
+
+        panel.Position = UDim2.fromOffset(origin.X.Offset + delta.X, origin.Y.Offset + delta.Y)
+        Sim.Clamp(panel, width, current)
+    end))
+end
+
+function Sim.Refresh()
+    local player = Sim.Player
+
+    if not Sim.Panel or not player then
+        return
+    end
+
+    if player.Parent ~= Players then
+        Sim.Close()
+        return
+    end
+
+    if Sim.Stamp ~= Sim.StampOf(player) then
+        Sim.Show(player)
+    end
+end
+
+Parts[10] = true
+assert(Parts and Parts[10], "[CheatReveal] Thiếu PHẦN 10/14, hãy dán đủ theo thứ tự")
+
+local function CreatePlayerRow(player)
+    if Rows[player] then
+        return Rows[player]
+    end
+
+    local row = Create("Frame", {
+        Name = "Player_" .. player.UserId,
+        Size = UDim2.new(1, -4, 0, 112),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.45,
+        BorderSizePixel = 0
+    }, UI.List)
+
+    Glass(row, 12, false)
+
+    local avatar = Create("ImageLabel", {
+        Size = UDim2.fromOffset(42, 42),
+        Position = UDim2.fromOffset(8, 8),
+        BackgroundColor3 = Config.Colors.Glass,
+        Image = "",
+        BorderSizePixel = 0
+    }, row)
+
+    Corner(avatar, 21)
+
+    task.spawn(function()
+        local ok, image = pcall(function()
+            return Players:GetUserThumbnailAsync(
+                player.UserId,
+                Enum.ThumbnailType.HeadShot,
+                Enum.ThumbnailSize.Size100x100
+            )
+        end)
+
+        if ok and avatar.Parent then
+            avatar.Image = image
+        end
+    end)
+
+    local name = Create("TextLabel", {
+        Size = UDim2.new(1, -150, 0, 18),
+        Position = UDim2.fromOffset(58, 6),
+        BackgroundTransparency = 1,
+        Text = player.DisplayName,
+        TextColor3 = Config.Colors.White,
+        TextSize = 11,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, row)
+
+    local percent = Create("TextLabel", {
+        Size = UDim2.fromOffset(80, 18),
+        Position = UDim2.new(1, -88, 0, 6),
+        BackgroundTransparency = 1,
+        Text = "--",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 14,
+        Font = Enum.Font.GothamBlack,
+        TextXAlignment = Enum.TextXAlignment.Right
+    }, row)
+
+    local status = Create("TextLabel", {
+        Size = UDim2.new(1, -68, 0, 14),
+        Position = UDim2.fromOffset(58, 25),
+        BackgroundTransparency = 1,
+        Text = "CHƯA QUÉT",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, row)
+
+    local bar = Create("Frame", {
+        Size = UDim2.new(1, -68, 0, 6),
+        Position = UDim2.fromOffset(58, 43),
+        BackgroundColor3 = Config.Colors.Black,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0
+    }, row)
+
+    Corner(bar, 5)
+
+    local fill = Create("Frame", {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Config.Colors.Green,
+        BorderSizePixel = 0
+    }, bar)
+
+    Corner(fill, 5)
+
+    local tags = Create("TextLabel", {
+        Size = UDim2.new(1, -68, 0, 28),
+        Position = UDim2.fromOffset(58, 53),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Config.Colors.Gray,
+        TextSize = 10,
+        Font = Enum.Font.Gotham,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, row)
+
+    local detail = Button(row, {
+        Size = UDim2.fromOffset(70, 22),
+        Position = UDim2.fromOffset(58, 85),
+        BackgroundColor3 = Config.Colors.Accent,
+        BackgroundTransparency = 0.45,
+        Text = "CHI TIẾT",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 6)
+
+    local observe = Button(row, {
+        Size = UDim2.fromOffset(78, 22),
+        Position = UDim2.fromOffset(134, 85),
+        BackgroundColor3 = Config.Colors.Glass2,
+        BackgroundTransparency = 0.4,
+        Text = "QUAN SÁT",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 6)
+
+    local scan = Button(row, {
+        Size = UDim2.fromOffset(56, 22),
+        Position = UDim2.fromOffset(218, 85),
+        BackgroundColor3 = Config.Colors.Violet,
+        BackgroundTransparency = 0.35,
+        Text = "TRA",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 6)
+
+    local sim = Button(row, {
+        Size = UDim2.fromOffset(84, 22),
+        Position = UDim2.fromOffset(280, 85),
+        BackgroundColor3 = Config.Colors.Red,
+        BackgroundTransparency = 0.45,
+        Text = "MÔ PHỎNG",
+        TextColor3 = Config.Colors.White,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold
+    }, 6)
+
+    detail.MouseButton1Click:Connect(function()
+        ShowDetails(player)
+    end)
+
+    observe.MouseButton1Click:Connect(function()
+        Spectate(player)
+    end)
+
+    scan.MouseButton1Click:Connect(function()
+        if RequestScan then
+            RequestScan({player}, true)
+        end
+    end)
+
+    sim.MouseButton1Click:Connect(function()
+        Sim.Show(player)
+    end)
+
+    Rows[player] = {
+        Row = row,
+        Stroke = row:FindFirstChildOfClass("UIStroke"),
+        Name = name,
+        Status = status,
+        Percent = percent,
+        Fill = fill,
+        Tags = tags,
+        Observe = observe,
+        LastScore = -1,
+        LastActive = false
+    }
+
+    return Rows[player]
+end
+
+local function UpdatePlayerRow(player)
+    local ui = Rows[player]
+
+    if not ui then
+        return
+    end
+
+    local data = ViewData(player)
+    local bg = BgView(player)
+    local logged = LogList(bg)
+    local score = data.Score
+    local active = data.Scanned and score >= Config.HackThreshold
+    local color = GetColor(score)
+    local barScore = 0
+    local barColor = Config.Colors.Green
+    local barActive = false
+
+    ui.Name.Text = player.DisplayName .. "  (@" .. player.Name .. ")"
+    ui.Status.Text = data.Status
+
+    if data.Scanning then
+        ui.Status.TextColor3 = Config.Colors.Yellow
+        ui.Percent.Text = "..."
+        ui.Percent.TextColor3 = Config.Colors.Accent
+        ui.Tags.Text = "Đang quét sâu, kết luận sau khi quét xong..."
+        ui.Tags.TextColor3 = Config.Colors.Gray
+    elseif data.Scanned then
+        barScore = score
+        barColor = color
+        barActive = active
+
+        ui.Status.TextColor3 = active and color or Config.Colors.Gray
+        ui.Percent.Text = score .. "%"
+        ui.Percent.TextColor3 = color
+
+        if active then
+            ui.Tags.Text = "Phát hiện " .. math.max(1, #data.Known + data.Unknown) .. " chức năng hack. Bấm MÔ PHỎNG để xem bảng của " .. player.Name
+            ui.Tags.TextColor3 = Config.Colors.Red
+        elseif #logged > 0 then
+            ui.Tags.Text = "Quét ngầm từng ghi nhận: " .. table.concat(logged, "  •  ")
+            ui.Tags.TextColor3 = Config.Colors.Orange
+        elseif (data.Moved or 0) < Config.MinMoved then
+            ui.Tags.Text = "Người này chưa chạy đủ lâu trong lúc quét. Hãy quét lại khi họ đang di chuyển."
+            ui.Tags.TextColor3 = Config.Colors.Yellow
+        else
+            ui.Tags.Text = "Không phát hiện phần mềm hack"
+            ui.Tags.TextColor3 = Config.Colors.Gray
+        end
+    elseif #logged > 0 then
+        barScore = bg.Peak
+        barColor = GetColor(bg.Peak)
+        barActive = true
+
+        ui.Status.Text = "PHÁT HIỆN NGẦM"
+        ui.Status.TextColor3 = barColor
+        ui.Percent.Text = bg.Peak .. "%"
+        ui.Percent.TextColor3 = barColor
+        ui.Tags.Text = "Ngầm: " .. table.concat(logged, "  •  ")
+        ui.Tags.TextColor3 = Config.Colors.Red
+    else
+        ui.Status.Text = State.Bg and "ĐANG GIÁM SÁT NGẦM" or "CHƯA QUÉT"
+        ui.Status.TextColor3 = Config.Colors.Gray
+        ui.Percent.Text = "--"
+        ui.Percent.TextColor3 = Config.Colors.Gray
+        ui.Tags.Text = State.Bg and "Quét ngầm đang theo dõi. Bấm TRA để quét sâu người này." or "Chưa quét. Bấm TRA để kiểm tra người này."
+        ui.Tags.TextColor3 = Config.Colors.Gray
+    end
+
+    if ui.LastScore ~= barScore or ui.LastActive ~= barActive then
+        ui.LastScore = barScore
+        ui.LastActive = barActive
+
+        TweenService:Create(ui.Fill, TweenInfo.new(0.25), {
+            Size = UDim2.new(barScore / 100, 0, 1, 0),
+            BackgroundColor3 = barColor
+        }):Play()
+
+        if ui.Stroke then
+            ui.Stroke.Color = barActive and barColor or Color3.fromRGB(255, 255, 255)
+            ui.Stroke.Transparency = barActive and 0.35 or 0.84
+        end
+    end
